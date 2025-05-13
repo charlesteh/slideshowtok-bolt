@@ -166,19 +166,22 @@ const SlideCanvas: React.FC = () => {
     const scaleY = node.scaleY();
     const rotation = node.rotation();
     const width = node.width() * scaleX;
+    const height = node.height() * scaleY;
     
-    // Reset scale to 1 but preserve the actual dimensions
+    // Update the node to use the new dimensions but reset scale to 1
+    // This prevents cumulative scaling issues
     node.scaleX(1);
     node.scaleY(1);
     node.width(width);
+    node.height(height);
     
     // Update state with new transformation data
     updateOverlay(currentSlide.id, id, {
       angle: rotation,
-      scaleX: 1, // Reset scale to 1
-      scaleY: 1, // Reset scale to 1
+      scaleX: 1,
+      scaleY: 1,
       width: width,
-      height: node.height(),
+      height: height,
       position: {
         x: node.x(),
         y: node.y()
@@ -259,19 +262,6 @@ const SlideCanvas: React.FC = () => {
     textarea.style.left = `${areaPosition.x}px`;
     textarea.style.width = `${textNode.width()}px`;
     textarea.style.height = `${Math.max(textNode.height(), 100)}px`;
-    textarea.style.fontSize = `${textNode.fontSize()}px`;
-    textarea.style.border = '2px solid #3b82f6';
-    textarea.style.padding = '5px';
-    textarea.style.overflow = 'auto';
-    textarea.style.background = 'black';
-    textarea.style.color = 'white';
-    textarea.style.outline = 'none';
-    textarea.style.resize = 'both';
-    textarea.style.fontFamily = textNode.fontFamily();
-    textarea.style.textAlign = textNode.align();
-    textarea.style.lineHeight = '1.2';
-    textarea.style.zIndex = '10000';
-    textarea.style.transform = `rotate(${textNode.rotation()}deg)`;
     
     textarea.focus();
     
@@ -545,9 +535,9 @@ const SlideCanvas: React.FC = () => {
                 return newBox;
               }}
               enabledAnchors={[
-                'top-left', 'top-right', 
-                'bottom-left', 'bottom-right',
-                'middle-left', 'middle-right'
+                'top-left', 'top-center', 'top-right',
+                'middle-left', 'middle-right',
+                'bottom-left', 'bottom-center', 'bottom-right'
               ]}
               rotateEnabled={true}
               resizeEnabled={true}
@@ -571,15 +561,7 @@ const SlideCanvas: React.FC = () => {
                 ref={controlsTextAreaRef}
                 value={selectedOverlay.data.text}
                 onChange={handleControlsTextChange}
-                className="w-full p-2 border rounded-md resize-none h-20 bg-black text-white"
-                style={{
-                  fontFamily: selectedOverlay.data.fontFamily,
-                  fontSize: `${Math.min(selectedOverlay.data.fontSize, 24)}px`,
-                  fontWeight: selectedOverlay.data.fontWeight,
-                  fontStyle: selectedOverlay.data.fontStyle,
-                  textAlign: selectedOverlay.data.textAlign as any,
-                  lineHeight: '1.2'
-                }}
+                className="w-full p-2 border rounded-md resize-y h-20"
               />
             </div>
             
