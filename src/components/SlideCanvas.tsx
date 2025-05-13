@@ -83,8 +83,6 @@ const SlideCanvas: React.FC = () => {
           // Attach transformer to the node
           transformer.nodes([selectedNode]);
           transformer.getLayer()?.batchDraw();
-          
-          // No longer need to update controls position
         } else {
           // Node no longer in layer, clear selection
           transformer.nodes([]);
@@ -105,27 +103,22 @@ const SlideCanvas: React.FC = () => {
     }
   }, [selectedId]);
 
-  // Removed updateControlsPosition function as it's no longer needed
-
-  const handleSelect = (id: string) => {
+  const handleSelect = (e: Konva.KonvaEventObject<MouseEvent>, id: string) => {
+    // Prevent event from bubbling up to stage
+    e.cancelBubble = true;
+    
     // Clean up textarea if one is open
     cleanupTextarea();
     
-    // Deselect if clicking the same node
-    if (id === selectedId) {
-      setSelectedId(null);
-      setShowControls(false);
-      return;
-    }
-    
+    // Set the selected id (no toggle behavior)
     setSelectedId(id);
-    setShowControls(false); // Hide controls initially when selecting a new element
+    setShowControls(false);
   };
 
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    // Clicked on an empty area of the stage
-    const clickedOnEmpty = e.target === e.target.getStage();
-    if (clickedOnEmpty) {
+    // Check if we clicked directly on the stage (empty area)
+    // and not on any child elements
+    if (e.target === e.target.getStage()) {
       setSelectedId(null);
       setShowControls(false);
       cleanupTextarea();
@@ -144,8 +137,6 @@ const SlideCanvas: React.FC = () => {
         y: node.y()
       }
     });
-    
-    // Control position updates no longer needed
   };
 
   const handleDragMove = () => {
@@ -182,8 +173,6 @@ const SlideCanvas: React.FC = () => {
         y: node.y()
       }
     });
-
-    // No longer need to update control position
     
     // Force redraw
     layerRef.current?.batchDraw();
@@ -545,7 +534,7 @@ const SlideCanvas: React.FC = () => {
                     key={overlay.id}
                     name={overlay.id}
                     {...textConfig}
-                    onClick={() => handleSelect(overlay.id)}
+                    onClick={(e) => handleSelect(e, overlay.id)}
                     onDblClick={(e) => handleTextDblClick(e, overlay.id)}
                     onDragEnd={(e) => handleDragEnd(e, overlay.id)}
                     onDragMove={handleDragMove}
