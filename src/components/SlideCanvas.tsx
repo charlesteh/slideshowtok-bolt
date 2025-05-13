@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
-import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, Type, Trash2, Settings } from 'lucide-react';
+import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, Type, Trash2, Settings, Minus, Plus } from 'lucide-react';
 import { FONT_FAMILIES, FONT_SIZES } from '../constants';
 import Konva from 'konva';
 import ColorPicker from './ColorPicker';
@@ -29,8 +29,8 @@ const SlideCanvas: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [controlsPosition, setControlsPosition] = useState({ top: 0, left: 0 });
   const [isEditing, setIsEditing] = useState(false);
-  const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
   const [showControls, setShowControls] = useState(false);
+  const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
   
   const currentSlide = getCurrentSlide();
 
@@ -594,7 +594,7 @@ const SlideCanvas: React.FC = () => {
           </Layer>
         </Stage>
         
-        {/* Edit Button - Appears when text is selected */}
+        {/* Buttons that appear below the text element */}
         {selectedOverlay && selectedOverlay.type === 'text' && !isEditing && (
           <div 
             className="absolute z-10"
@@ -604,13 +604,37 @@ const SlideCanvas: React.FC = () => {
               transform: 'translate(-50%, 0)'
             }}
           >
-            <button
-              className="bg-white shadow-md rounded-full p-2 border border-gray-300 hover:bg-gray-50"
-              onClick={() => setShowControls(!showControls)}
-              title={showControls ? "Hide text controls" : "Edit text properties"}
-            >
-              <Settings size={20} className="text-gray-700" />
-            </button>
+            <div className="flex gap-2">
+              <button
+                className="bg-white shadow-md rounded-full p-2 border border-gray-300 hover:bg-gray-50"
+                onClick={() => {
+                  const fontSize = Math.max(selectedOverlay.data.fontSize - 2, 8);
+                  handleStyleChange('fontSize', fontSize.toString());
+                }}
+                title="Decrease font size"
+              >
+                <Minus size={16} className="text-gray-700" />
+              </button>
+              
+              <button
+                className="bg-white shadow-md rounded-full p-2 border border-gray-300 hover:bg-gray-50"
+                onClick={() => {
+                  const fontSize = Math.min(selectedOverlay.data.fontSize + 2, 120);
+                  handleStyleChange('fontSize', fontSize.toString());
+                }}
+                title="Increase font size"
+              >
+                <Plus size={16} className="text-gray-700" />
+              </button>
+              
+              <button
+                className="bg-red-500 shadow-md rounded-full p-2 border border-red-400 hover:bg-red-600"
+                onClick={handleDelete}
+                title="Delete text"
+              >
+                <Trash2 size={16} className="text-white" />
+              </button>
+            </div>
           </div>
         )}
         
