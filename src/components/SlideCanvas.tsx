@@ -183,7 +183,7 @@ const SlideCanvas: React.FC = () => {
   };
 
   const cleanupTextarea = () => {
-    if (textareaRef.current) {
+    if (textareaRef.current && document.body.contains(textareaRef.current)) {
       document.body.removeChild(textareaRef.current);
       textareaRef.current = null;
     }
