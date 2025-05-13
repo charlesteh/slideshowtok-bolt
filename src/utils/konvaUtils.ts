@@ -47,7 +47,7 @@ export const createTextConfig = (overlay: OverlayType) => {
     // Enable text wrapping
     wrap: 'word',
     lineHeight: 1.2,
-    ellipsis: false, // Don't truncate with ellipsis
+    ellipsis: false // Don't truncate with ellipsis
   };
 };
 

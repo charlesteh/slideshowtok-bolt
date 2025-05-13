@@ -24,7 +24,7 @@ const SlideCanvas: React.FC = () => {
   const transformerRef = useRef<Konva.Transformer>(null);
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const controlsTextAreaRef = useRef<HTMLTextAreaElement>(null);
+  const textEditingId = useRef<string | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [controlsPosition, setControlsPosition] = useState({ top: 0, left: 0 });
@@ -63,6 +63,8 @@ const SlideCanvas: React.FC = () => {
       transformerRef.current.nodes([]);
       transformerRef.current.getLayer()?.batchDraw();
     }
+    // Also remove any open textarea
+    cleanupTextarea();
   }, [currentSlide?.id]);
 
   // Attach transformer to selected node
@@ -122,6 +124,9 @@ const SlideCanvas: React.FC = () => {
   };
 
   const handleSelect = (id: string) => {
+    // Clean up textarea if one is open
+    cleanupTextarea();
+    
     // Deselect if clicking the same node
     if (id === selectedId) {
       setSelectedId(null);
@@ -136,6 +141,7 @@ const SlideCanvas: React.FC = () => {
     const clickedOnEmpty = e.target === e.target.getStage();
     if (clickedOnEmpty) {
       setSelectedId(null);
+      cleanupTextarea();
     }
   };
 
@@ -168,18 +174,17 @@ const SlideCanvas: React.FC = () => {
     const width = node.width() * scaleX;
     const height = node.height() * scaleY;
     
-    // Update the node to use the new dimensions but reset scale to 1
-    // This prevents cumulative scaling issues
-    node.scaleX(1);
-    node.scaleY(1);
+    // Reset scale to 1 and apply the actual size - THIS IS CRITICAL
     node.width(width);
     node.height(height);
+    node.scaleX(1);
+    node.scaleY(1);
     
     // Update state with new transformation data
     updateOverlay(currentSlide.id, id, {
       angle: rotation,
-      scaleX: 1,
-      scaleY: 1,
+      scaleX: 1, // Reset scale to 1
+      scaleY: 1, // Reset scale to 1
       width: width,
       height: height,
       position: {
@@ -191,32 +196,41 @@ const SlideCanvas: React.FC = () => {
     // Update control position
     updateControlsPosition(node);
     
-    // Make sure to redraw the layer
-    if (layerRef.current) {
-      layerRef.current.batchDraw();
-    }
+    // Force redraw
+    layerRef.current?.batchDraw();
   };
-
+  
   const cleanupTextarea = () => {
     if (textareaRef.current && document.body.contains(textareaRef.current)) {
       document.body.removeChild(textareaRef.current);
       textareaRef.current = null;
     }
+    
+    if (textEditingId.current) {
+      const textNode = textNodesRef.current.get(textEditingId.current);
+      if (textNode) {
+        textNode.show();
+      }
+      textEditingId.current = null;
+    }
+    
     window.removeEventListener('mousedown', handleOutsideClick);
     setIsEditing(false);
   };
 
   const handleOutsideClick = (e: MouseEvent) => {
     if (textareaRef.current && e.target !== textareaRef.current) {
-      const textNode = textNodesRef.current.get(selectedId || '');
-      if (textNode && textareaRef.current) {
-        textNode.text(textareaRef.current.value);
-        
-        // Update state
-        if (currentSlide && selectedId) {
-          updateOverlay(currentSlide.id, selectedId, {
-            text: textareaRef.current.value
-          });
+      if (textEditingId.current) {
+        const textNode = textNodesRef.current.get(textEditingId.current);
+        if (textNode && textareaRef.current) {
+          textNode.text(textareaRef.current.value);
+          
+          // Update state
+          if (currentSlide) {
+            updateOverlay(currentSlide.id, textEditingId.current, {
+              text: textareaRef.current.value
+            });
+          }
         }
       }
       cleanupTextarea();
@@ -228,8 +242,9 @@ const SlideCanvas: React.FC = () => {
     e.evt.preventDefault();
     
     const textNode = e.target as Konva.Text;
+    textEditingId.current = id;
     
-    // Enable text editing
+    // Hide the text node while editing
     textNode.hide();
     if (transformerRef.current) {
       transformerRef.current.hide();
@@ -242,108 +257,127 @@ const SlideCanvas: React.FC = () => {
     if (!stageBox) return;
     
     const areaPosition = {
-      x: stageBox.left + textPosition.x,
-      y: stageBox.top + textPosition.y
+      x: stageBox.left + textPosition.x - textNode.offsetX(),
+      y: stageBox.top + textPosition.y - textNode.offsetY()
     };
     
-    // Remove existing textarea if any
-    if (textareaRef.current) {
-      cleanupTextarea();
-    }
+    // Remove any existing textarea
+    cleanupTextarea();
     
-    // Create textarea
+    // Create a new textarea
     const textarea = document.createElement('textarea');
     textareaRef.current = textarea;
     document.body.appendChild(textarea);
     
+    // Set the textarea properties
     textarea.value = textNode.text();
     textarea.style.position = 'absolute';
     textarea.style.top = `${areaPosition.y}px`;
     textarea.style.left = `${areaPosition.x}px`;
     textarea.style.width = `${textNode.width()}px`;
     textarea.style.height = `${Math.max(textNode.height(), 100)}px`;
+    textarea.style.fontSize = `${textNode.fontSize()}px`;
+    textarea.style.lineHeight = '1.2';
+    textarea.style.fontFamily = textNode.fontFamily();
+    textarea.style.color = textNode.fill();
+    textarea.style.border = '1px solid #000';
+    textarea.style.padding = '5px';
+    textarea.style.borderRadius = '3px';
+    textarea.style.overflow = 'auto';
+    textarea.style.background = '#fff';
+    textarea.style.resize = 'both';
+    textarea.style.outline = 'none';
+    textarea.style.textAlign = textNode.align();
     
+    // Focus the textarea
     textarea.focus();
     
     setIsEditing(true);
     
+    // Event handlers
     textarea.addEventListener('keydown', function(e) {
+      // Preserve Enter for newlines
+      if (e.key === 'Enter' && e.shiftKey) {
+        return; // Allow shift+enter for new lines
+      }
+      
       // On enter without shift, complete editing
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        textNode.text(textarea.value);
-        
-        // Update state
-        updateOverlay(currentSlide.id, id, {
-          text: textarea.value
-        });
-        
-        cleanupTextarea();
-        
-        textNode.show();
-        if (transformerRef.current) {
-          transformerRef.current.show();
-        }
-        if (layerRef.current) {
-          layerRef.current.batchDraw();
-        }
+        finishEditing();
       }
       
       // On escape, cancel editing
       if (e.key === 'Escape') {
-        cleanupTextarea();
-        
-        textNode.show();
-        if (transformerRef.current) {
-          transformerRef.current.show();
-        }
-        if (layerRef.current) {
-          layerRef.current.batchDraw();
-        }
+        e.preventDefault();
+        cancelEditing();
       }
     });
     
-    textarea.addEventListener('blur', function() {
-      textNode.text(textarea.value);
+    textarea.addEventListener('blur', finishEditing);
+    
+    // Handle resizing of textarea
+    textarea.addEventListener('mouseup', function() {
+      // Update text node width based on textarea size
+      const newWidth = textarea.clientWidth;
+      const newHeight = textarea.clientHeight;
+      
+      if (textNode.width() !== newWidth || textNode.height() !== newHeight) {
+        textNode.width(newWidth);
+        textNode.height(newHeight);
+        
+        // Update state
+        updateOverlay(currentSlide.id, id, {
+          width: newWidth,
+          height: newHeight
+        });
+      }
+    });
+    
+    function finishEditing() {
+      if (!textNode.getLayer() || !textareaRef.current) return;
+      
+      // Apply the text and show the node
+      textNode.text(textareaRef.current.value);
       
       // Update state
       updateOverlay(currentSlide.id, id, {
-        text: textarea.value
+        text: textareaRef.current.value
       });
       
+      // Clean up
       cleanupTextarea();
       
+      // Show the text node
       textNode.show();
       if (transformerRef.current) {
         transformerRef.current.show();
       }
-      if (layerRef.current) {
-        layerRef.current.batchDraw();
-      }
-    });
+      layerRef.current?.batchDraw();
+    }
     
-    // Handle resize of textarea
-    textarea.addEventListener('mouseup', function() {
-      // Update text node width based on textarea size
-      const newWidth = textarea.clientWidth;
-      textNode.width(newWidth);
+    function cancelEditing() {
+      if (!textNode.getLayer()) return;
       
-      // Update state
-      updateOverlay(currentSlide.id, id, {
-        width: newWidth
-      });
-    });
+      // Clean up without updating
+      cleanupTextarea();
+      
+      // Show the text node
+      textNode.show();
+      if (transformerRef.current) {
+        transformerRef.current.show();
+      }
+      layerRef.current?.batchDraw();
+    }
     
+    // Add event listener for clicks outside
     setTimeout(() => {
       window.addEventListener('mousedown', handleOutsideClick);
     });
   };
 
-  // Handle text changes from the control panel textarea
-  const handleControlsTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleTextChange = (newText: string) => {
     if (!currentSlide || !selectedId) return;
-    
-    const newText = e.target.value;
     
     // Update the Konva text node
     const textNode = textNodesRef.current.get(selectedId);
@@ -418,6 +452,7 @@ const SlideCanvas: React.FC = () => {
             textNode.strokeWidth(newValue);
             break;
           case 'width':
+            // Update width and ensure text rewraps
             textNode.width(newValue);
             break;
         }
@@ -510,9 +545,8 @@ const SlideCanvas: React.FC = () => {
                     onDblClick={(e) => handleTextDblClick(e, overlay.id)}
                     onDragEnd={(e) => handleDragEnd(e, overlay.id)}
                     onTransformEnd={(e) => handleTransformEnd(e, overlay.id)}
-                    // Enable text wrapping
-                    width={textConfig.width}
                     wrap="word"
+                    ellipsis={false}
                     ref={(node) => {
                       if (node) {
                         registerTextNode(overlay.id, node);
@@ -558,10 +592,9 @@ const SlideCanvas: React.FC = () => {
             {/* Text Editing Area */}
             <div className="mb-3">
               <textarea
-                ref={controlsTextAreaRef}
                 value={selectedOverlay.data.text}
-                onChange={handleControlsTextChange}
-                className="w-full p-2 border rounded-md resize-y h-20"
+                onChange={(e) => handleTextChange(e.target.value)}
+                className="w-full p-2 border rounded-md resize-y h-20 text-black"
               />
             </div>
             
@@ -677,7 +710,7 @@ const SlideCanvas: React.FC = () => {
               />
             </div>
             
-            {/* Outline Controls (always visible now) */}
+            {/* Outline Controls */}
             <div className="mt-2 pt-2 border-t">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xs text-gray-600">Outline Width: {selectedOverlay.data.strokeWidth}px</span>
