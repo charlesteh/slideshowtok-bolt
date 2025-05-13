@@ -24,6 +24,7 @@ const SlideCanvas: React.FC = () => {
   const transformerRef = useRef<Konva.Transformer>(null);
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const controlsTextAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [controlsPosition, setControlsPosition] = useState({ top: 0, left: 0 });
@@ -325,6 +326,27 @@ const SlideCanvas: React.FC = () => {
     });
   };
 
+  // Handle text changes from the control panel textarea
+  const handleControlsTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!currentSlide || !selectedId) return;
+    
+    const newText = e.target.value;
+    
+    // Update the Konva text node
+    const textNode = textNodesRef.current.get(selectedId);
+    if (textNode) {
+      textNode.text(newText);
+      if (layerRef.current) {
+        layerRef.current.batchDraw();
+      }
+    }
+    
+    // Update state
+    updateOverlay(currentSlide.id, selectedId, {
+      text: newText
+    });
+  };
+
   const handleStyleChange = (property: string, value: any) => {
     if (!currentSlide || !selectedId) return;
     
@@ -514,6 +536,26 @@ const SlideCanvas: React.FC = () => {
               transform: 'translateX(-50%)'
             }}
           >
+            {/* Text Editing Area */}
+            <div className="mb-3">
+              <textarea
+                ref={controlsTextAreaRef}
+                value={selectedOverlay.data.text}
+                onChange={handleControlsTextChange}
+                className="w-full p-2 border rounded-md resize-none"
+                style={{
+                  fontFamily: selectedOverlay.data.fontFamily,
+                  fontSize: `${Math.min(selectedOverlay.data.fontSize, 24)}px`,
+                  fontWeight: selectedOverlay.data.fontWeight,
+                  fontStyle: selectedOverlay.data.fontStyle,
+                  textAlign: selectedOverlay.data.textAlign as any,
+                  color: selectedOverlay.data.fill,
+                  lineHeight: '1.2',
+                  minHeight: '60px'
+                }}
+              />
+            </div>
+            
             {/* Row 1: Font Family and Delete */}
             <div className="flex justify-between items-center mb-2">
               <Select value={selectedOverlay.data.fontFamily} onValueChange={(value) => handleStyleChange('fontFamily', value)}>
