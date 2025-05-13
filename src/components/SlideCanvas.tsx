@@ -37,6 +37,16 @@ const SlideCanvas: React.FC = () => {
       fabricCanvasRef.current.on('selection:cleared', handleSelectionCleared);
       fabricCanvasRef.current.on('text:changed', handleTextChanged);
       fabricCanvasRef.current.on('object:moving', handleObjectMoving);
+      fabricCanvasRef.current.on('text:editing:entered', () => setIsEditing(true));
+      fabricCanvasRef.current.on('text:editing:exited', () => {
+        setIsEditing(false);
+        // Re-select the object after editing
+        const activeObject = fabricCanvasRef.current?.getActiveObject();
+        if (activeObject) {
+          fabricCanvasRef.current?.setActiveObject(activeObject);
+          updateControlsPosition(activeObject);
+        }
+      });
     }
 
     loadSlideToCanvas(
@@ -66,6 +76,8 @@ const SlideCanvas: React.FC = () => {
         fabricCanvasRef.current.off('selection:cleared', handleSelectionCleared);
         fabricCanvasRef.current.off('text:changed', handleTextChanged);
         fabricCanvasRef.current.off('object:moving', handleObjectMoving);
+        fabricCanvasRef.current.off('text:editing:entered');
+        fabricCanvasRef.current.off('text:editing:exited');
       }
     };
   }, [currentSlide]);
@@ -224,6 +236,9 @@ const SlideCanvas: React.FC = () => {
     fabricCanvasRef.current.requestRenderAll();
     updateOverlay(currentSlide.id, selectedOverlay.id, updates);
     updateControlsPosition(activeObject);
+    
+    // Re-select the object after style change
+    fabricCanvasRef.current.setActiveObject(activeObject);
   };
 
   const handleDelete = () => {
