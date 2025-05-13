@@ -1,4 +1,4 @@
-import { fabric } from 'fabric';
+import Konva from 'konva';
 
 export interface SlideType {
   id: string;
@@ -13,7 +13,6 @@ export interface SlideType {
 export interface OverlayType {
   id: string;
   type: 'text';
-  fabricObject?: fabric.Object;
   data: {
     text: string;
     fontFamily: string;

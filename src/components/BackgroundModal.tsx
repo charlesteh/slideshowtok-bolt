@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Upload, Link, Image as ImageIcon } from 'lucide-react';
 import { useSlideContext } from '../context/SlideContext';
-import { convertToBase64, loadImageFromUrl } from '../utils/fabricUtils';
+import { convertToBase64, loadImageFromUrl } from '../utils/konvaUtils';
 
 interface BackgroundModalProps {
   isOpen: boolean;

@@ -1,7 +1,7 @@
-import { fabric } from 'fabric';
+import Konva from 'konva';
 import { SlideType } from '../types';
 import { ASPECT_RATIOS } from '../constants';
-import { setBackgroundImage } from './fabricUtils';
+import { createTextConfig, getCanvasSize } from './konvaUtils';
 
 export const generateSlideThumbnail = async (
   slide: SlideType, 
@@ -9,67 +9,94 @@ export const generateSlideThumbnail = async (
   height: number = 90
 ): Promise<string> => {
   return new Promise((resolve) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    if (!ctx) {
-      resolve('');
-      return;
-    }
-    
-    const fabricCanvas = new fabric.Canvas(canvas, {
-      width: width,
-      height: height,
-      backgroundColor: '#ffffff'
+    // Create a temporary stage and layer
+    const stage = new Konva.Stage({
+      container: document.createElement('div'),
+      width,
+      height
     });
     
+    const layer = new Konva.Layer();
+    stage.add(layer);
+    
+    // Set background
     if (slide.background.type === 'image') {
-      // Create a new image element
       const img = new Image();
       img.crossOrigin = 'anonymous';
       
       img.onload = () => {
-        // Create a temporary canvas
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = img.width;
-        tempCanvas.height = img.height;
-        
-        const tempCtx = tempCanvas.getContext('2d');
-        if (!tempCtx) {
-          resolve('');
-          return;
-        }
-        
-        // Draw and convert to base64
-        tempCtx.drawImage(img, 0, 0);
-        const base64 = tempCanvas.toDataURL('image/jpeg');
-        
-        // Use base64 image with fabric
-        fabric.Image.fromURL(base64, (fabricImg) => {
-          fabricCanvas.setBackgroundImage(fabricImg, fabricCanvas.renderAll.bind(fabricCanvas), {
-            scaleX: width / fabricImg.width!,
-            scaleY: height / fabricImg.height!
-          });
-          
-          const thumbnailUrl = fabricCanvas.toDataURL({
-            format: 'jpeg',
-            quality: 0.5
-          });
-          
-          fabricCanvas.dispose();
-          resolve(thumbnailUrl);
+        const konvaImage = new Konva.Image({
+          image: img,
+          width,
+          height,
+          x: 0,
+          y: 0
         });
+        
+        layer.add(konvaImage);
+        
+        // Add text overlays (scaled down for thumbnail)
+        addTextOverlays(slide, layer, width, height);
+        
+        // Get thumbnail URL
+        layer.draw();
+        const dataUrl = stage.toDataURL();
+        resolve(dataUrl);
+        
+        // Clean up
+        stage.destroy();
       };
       
       img.src = slide.background.value;
     } else {
-      fabricCanvas.backgroundColor = slide.background.value;
-      const dataUrl = fabricCanvas.toDataURL({
-        format: 'jpeg',
-        quality: 0.5
+      // Color background
+      const rect = new Konva.Rect({
+        x: 0,
+        y: 0,
+        width,
+        height,
+        fill: slide.background.value
       });
-      fabricCanvas.dispose();
+      
+      layer.add(rect);
+      
+      // Add text overlays (scaled down for thumbnail)
+      addTextOverlays(slide, layer, width, height);
+      
+      // Get thumbnail URL
+      layer.draw();
+      const dataUrl = stage.toDataURL();
       resolve(dataUrl);
+      
+      // Clean up
+      stage.destroy();
+    }
+  });
+};
+
+const addTextOverlays = (slide: SlideType, layer: Konva.Layer, width: number, height: number) => {
+  const originalSize = getCanvasSize(slide.aspectRatio);
+  const scaleX = width / originalSize.width;
+  const scaleY = height / originalSize.height;
+  
+  slide.overlays.forEach(overlay => {
+    if (overlay.type === 'text') {
+      const textConfig = createTextConfig(overlay);
+      
+      // Scale position for thumbnail
+      const text = new Konva.Text({
+        ...textConfig,
+        x: textConfig.x * scaleX,
+        y: textConfig.y * scaleY,
+        fontSize: textConfig.fontSize * Math.min(scaleX, scaleY),
+        scaleX: textConfig.scaleX * scaleX,
+        scaleY: textConfig.scaleY * scaleY,
+        offsetX: textConfig.offsetX * scaleX,
+        offsetY: textConfig.offsetY * scaleY,
+        draggable: false
+      });
+      
+      layer.add(text);
     }
   });
 };
@@ -80,14 +107,17 @@ export const exportAllSlides = async (
   const blobs: Blob[] = [];
   
   for (const slide of slides) {
-    const canvas = document.createElement('canvas');
-    const aspectRatioConfig = ASPECT_RATIOS[slide.aspectRatio];
+    const { width, height } = getCanvasSize(slide.aspectRatio);
     
-    const fabricCanvas = new fabric.Canvas(canvas, {
-      width: aspectRatioConfig.width,
-      height: aspectRatioConfig.height,
-      backgroundColor: '#ffffff'
+    // Create a temporary stage
+    const stage = new Konva.Stage({
+      container: document.createElement('div'),
+      width,
+      height
     });
+    
+    const layer = new Konva.Layer();
+    stage.add(layer);
     
     // Create a promise to handle async background loading
     const slideExport = new Promise<Blob>((resolve) => {
@@ -96,104 +126,76 @@ export const exportAllSlides = async (
         img.crossOrigin = 'anonymous';
         
         img.onload = () => {
-          const tempCanvas = document.createElement('canvas');
-          tempCanvas.width = img.width;
-          tempCanvas.height = img.height;
-          
-          const tempCtx = tempCanvas.getContext('2d');
-          if (!tempCtx) {
-            resolve(new Blob(['Export failed'], { type: 'text/plain' }));
-            return;
-          }
-          
-          tempCtx.drawImage(img, 0, 0);
-          const base64 = tempCanvas.toDataURL('image/jpeg');
-          
-          fabric.Image.fromURL(base64, (fabricImg) => {
-            fabricCanvas.setBackgroundImage(fabricImg, fabricCanvas.renderAll.bind(fabricCanvas), {
-              scaleX: fabricCanvas.width! / fabricImg.width!,
-              scaleY: fabricCanvas.height! / fabricImg.height!
-            });
-            
-            // Add all overlays
-            slide.overlays.forEach(overlay => {
-              if (overlay.type === 'text') {
-                const { data, position } = overlay;
-                const textObject = new fabric.Textbox(data.text, {
-                  left: position?.x ?? fabricCanvas.width! / 2,
-                  top: position?.y ?? fabricCanvas.height! / 2,
-                  fontFamily: data.fontFamily,
-                  fontSize: data.fontSize,
-                  fontWeight: data.fontWeight as any,
-                  fontStyle: data.fontStyle as any,
-                  textAlign: data.textAlign as any,
-                  fill: data.fill,
-                  stroke: data.stroke,
-                  strokeWidth: data.strokeWidth,
-                  originX: 'center',
-                  originY: 'center',
-                  angle: data.angle ?? 0,
-                  scaleX: data.scaleX ?? 1,
-                  scaleY: data.scaleY ?? 1,
-                  width: 200
-                });
-                fabricCanvas.add(textObject);
-              }
-            });
-            
-            fabricCanvas.renderAll();
-            
-            canvas.toBlob((blob) => {
-              if (blob) {
-                resolve(blob);
-              } else {
-                resolve(new Blob(['Export failed'], { type: 'text/plain' }));
-              }
-              fabricCanvas.dispose();
-            }, 'image/jpeg', 0.8);
+          const konvaImage = new Konva.Image({
+            image: img,
+            width,
+            height,
+            x: 0,
+            y: 0
           });
+          
+          layer.add(konvaImage);
+          
+          // Add all text overlays
+          slide.overlays.forEach(overlay => {
+            if (overlay.type === 'text') {
+              const textConfig = createTextConfig(overlay);
+              const text = new Konva.Text(textConfig);
+              layer.add(text);
+            }
+          });
+          
+          layer.draw();
+          
+          // Convert stage to blob
+          stage.toBlob({
+            mimeType: 'image/jpeg',
+            quality: 0.8,
+            callback: (blob) => {
+              resolve(blob);
+              stage.destroy();
+            }
+          });
+        };
+        
+        img.onerror = () => {
+          resolve(new Blob(['Export failed'], { type: 'text/plain' }));
+          stage.destroy();
         };
         
         img.src = slide.background.value;
       } else {
-        fabricCanvas.backgroundColor = slide.background.value;
+        // Color background
+        const rect = new Konva.Rect({
+          x: 0,
+          y: 0,
+          width,
+          height,
+          fill: slide.background.value
+        });
         
-        // Add all overlays
+        layer.add(rect);
+        
+        // Add all text overlays
         slide.overlays.forEach(overlay => {
           if (overlay.type === 'text') {
-            const { data, position } = overlay;
-            const textObject = new fabric.Textbox(data.text, {
-              left: position?.x ?? fabricCanvas.width! / 2,
-              top: position?.y ?? fabricCanvas.height! / 2,
-              fontFamily: data.fontFamily,
-              fontSize: data.fontSize,
-              fontWeight: data.fontWeight as any,
-              fontStyle: data.fontStyle as any,
-              textAlign: data.textAlign as any,
-              fill: data.fill,
-              stroke: data.stroke,
-              strokeWidth: data.strokeWidth,
-              originX: 'center',
-              originY: 'center',
-              angle: data.angle ?? 0,
-              scaleX: data.scaleX ?? 1,
-              scaleY: data.scaleY ?? 1,
-              width: 200
-            });
-            fabricCanvas.add(textObject);
+            const textConfig = createTextConfig(overlay);
+            const text = new Konva.Text(textConfig);
+            layer.add(text);
           }
         });
         
-        fabricCanvas.renderAll();
+        layer.draw();
         
-        canvas.toBlob((blob) => {
-          if (blob) {
+        // Convert stage to blob
+        stage.toBlob({
+          mimeType: 'image/jpeg',
+          quality: 0.8,
+          callback: (blob) => {
             resolve(blob);
-          } else {
-            resolve(new Blob(['Export failed'], { type: 'text/plain' }));
+            stage.destroy();
           }
-          fabricCanvas.dispose();
-        }, 'image/jpeg', 0.8);
+        });
       }
     });
     
@@ -217,7 +219,7 @@ export const downloadSlides = async (slides: SlideType[]): Promise<void> => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   } else {
-    // Multiple slides - create a zip or download individually
+    // Multiple slides - download individually
     blobs.forEach((blob, index) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

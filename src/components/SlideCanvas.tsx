@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { fabric } from 'fabric';
+import React, { useRef, useState, useEffect } from 'react';
+import { Stage, Layer, Text, Image, Group, Transformer } from 'react-konva';
 import { useSlideContext } from '../context/SlideContext';
 import { OverlayType } from '../types';
-import { initCanvas, loadSlideToCanvas } from '../utils/fabricUtils';
+import { getCanvasSize, createTextConfig } from '../utils/konvaUtils';
 import {
   Select,
   SelectContent,
@@ -13,319 +13,381 @@ import {
 import { Toggle } from "@/components/ui/toggle";
 import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, Type, Trash2 } from 'lucide-react';
 import { FONT_FAMILIES, FONT_SIZES } from '../constants';
+import Konva from 'konva';
 
 const SlideCanvas: React.FC = () => {
   const { getCurrentSlide, updateOverlay, deleteOverlay } = useSlideContext();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
-  const [selectedOverlay, setSelectedOverlay] = useState<OverlayType | null>(null);
+  const stageRef = useRef<Konva.Stage>(null);
+  const layerRef = useRef<Konva.Layer>(null);
+  const transformerRef = useRef<Konva.Transformer>(null);
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [controlsPosition, setControlsPosition] = useState({ top: 0, left: 0 });
   const [isEditing, setIsEditing] = useState(false);
+  const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
   
   const currentSlide = getCurrentSlide();
 
-  // Initialize the canvas once on component mount
+  // Load background image when slide changes
   useEffect(() => {
-    if (!canvasRef.current) return;
-    
-    // Only create the canvas once
-    if (!fabricCanvasRef.current) {
-      const canvas = initCanvas(canvasRef.current, currentSlide || {
-        id: 'temp',
-        aspectRatio: '4:5',
-        background: { type: 'color', value: '#ffffff' },
-        overlays: []
-      });
-      
-      fabricCanvasRef.current = canvas;
-      
-      // Set up event handlers - these remain even when slides change
-      canvas.on('mouse:down', handleMouseDown);
-      canvas.on('mouse:up', handleMouseUp);
-      canvas.on('object:modified', handleObjectModified);
-      canvas.on('selection:created', handleSelectionCreated);
-      canvas.on('selection:cleared', handleSelectionCleared);
-      canvas.on('text:changed', handleTextChanged);
-      canvas.on('object:moving', handleObjectMoving);
-      canvas.on('text:editing:entered', () => setIsEditing(true));
-      canvas.on('text:editing:exited', () => {
-        setIsEditing(false);
-        // Re-select the object after editing
-        const activeObject = canvas.getActiveObject();
-        if (activeObject) {
-          canvas.setActiveObject(activeObject);
-          updateControlsPosition(activeObject);
-        }
-      });
+    if (!currentSlide || currentSlide.background.type !== 'image') {
+      setBackgroundImage(null);
+      return;
     }
-    
-    // Cleanup event handlers when component unmounts
-    return () => {
-      if (fabricCanvasRef.current) {
-        fabricCanvasRef.current.off('mouse:down', handleMouseDown);
-        fabricCanvasRef.current.off('mouse:up', handleMouseUp);
-        fabricCanvasRef.current.off('object:modified', handleObjectModified);
-        fabricCanvasRef.current.off('selection:created', handleSelectionCreated);
-        fabricCanvasRef.current.off('selection:cleared', handleSelectionCleared);
-        fabricCanvasRef.current.off('text:changed', handleTextChanged);
-        fabricCanvasRef.current.off('object:moving', handleObjectMoving);
-        fabricCanvasRef.current.off('text:editing:entered');
-        fabricCanvasRef.current.off('text:editing:exited');
-      }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = currentSlide.background.value;
+    img.onload = () => {
+      setBackgroundImage(img);
     };
-  }, []);
+  }, [currentSlide?.id, currentSlide?.background.value, currentSlide?.background.type]);
 
-  // Update canvas when current slide changes
+  // Attach transformer to selected node
   useEffect(() => {
-    if (!fabricCanvasRef.current || !currentSlide) return;
+    if (!selectedId || !transformerRef.current || !stageRef.current) return;
 
-    // Load the current slide into the canvas
-    loadSlideToCanvas(
-      fabricCanvasRef.current,
-      currentSlide,
-      (overlay, textObject) => {
-        // Store overlay ID on the fabric object for direct reference
-        textObject.set('overlayId', overlay.id);
-        
-        textObject.setControlsVisibility({
-          mt: false,
-          mb: false,
-          ml: true,
-          mr: true,
-          tl: true,
-          tr: true,
-          bl: true,
-          br: true,
-          mtr: true,
-        });
-      }
-    );
+    const stage = stageRef.current;
+    const transformer = transformerRef.current;
     
-    // Clear selection when changing slides
-    setSelectedOverlay(null);
+    // Find the node by id
+    const selectedNode = stage.findOne('#' + selectedId);
     
-  }, [currentSlide?.id]);
+    if (selectedNode) {
+      // Attach transformer to the node
+      transformer.nodes([selectedNode as Konva.Node]);
+      transformer.getLayer()?.batchDraw();
 
-  // Direct fabric canvas event handlers
-  const handleMouseDown = (e: fabric.IEvent) => {
-    const activeObject = fabricCanvasRef.current?.getActiveObject();
-    if (activeObject instanceof fabric.Textbox) {
-      if (e.e && (e.e as MouseEvent).detail === 2) {
-        activeObject.enterEditing();
-        setIsEditing(true);
-      }
+      // Update controls position
+      updateControlsPosition(selectedNode as Konva.Node);
+    } else {
+      // No selected node, clear transformer
+      transformer.nodes([]);
+      transformer.getLayer()?.batchDraw();
     }
-  };
+  }, [selectedId]);
 
-  const handleMouseUp = () => {
-    const activeObject = fabricCanvasRef.current?.getActiveObject();
-    if (activeObject instanceof fabric.Textbox && !activeObject.isEditing) {
-      setIsEditing(false);
-    }
-  };
-
-  const updateControlsPosition = (object: fabric.Object) => {
-    if (!canvasRef.current) return;
+  const updateControlsPosition = (node: Konva.Node) => {
+    if (!stageRef.current || !node) return;
     
-    const zoom = fabricCanvasRef.current?.getZoom() || 1;
-    const rect = object.getBoundingRect();
-    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const stage = stageRef.current;
+    
+    // Get absolute position on the page
+    const stageBox = stage.container().getBoundingClientRect();
+    const box = node.getClientRect();
     
     setControlsPosition({
-      top: canvasRect.top + (rect.top + rect.height) * zoom + 10,
-      left: canvasRect.left + rect.left * zoom + (rect.width * zoom) / 2
+      top: stageBox.top + box.y + box.height + 10,
+      left: stageBox.left + box.x + box.width / 2
     });
   };
 
-  const handleObjectModified = (e: fabric.IEvent) => {
-    const modifiedObject = e.target;
-    if (!modifiedObject || !currentSlide) return;
-
-    // Get overlay ID directly from the fabric object
-    const overlayId = modifiedObject.get('overlayId');
-    if (!overlayId) return;
-
-    if (modifiedObject instanceof fabric.Textbox) {
-      const { left, top, width, height, scaleX = 1, scaleY = 1, angle = 0 } = modifiedObject;
-      
-      // Save all properties to context
-      updateOverlay(currentSlide.id, overlayId, {
-        width: width ? width * scaleX : undefined,
-        height: height ? height * scaleY : undefined,
-        angle,
-        scaleX,
-        scaleY,
-        position: {
-          x: left ?? 0,
-          y: top ?? 0
-        }
-      });
-      
-      updateControlsPosition(modifiedObject);
+  const handleSelect = (id: string) => {
+    setSelectedId(id);
+    
+    // Find the current overlay
+    if (currentSlide) {
+      const overlay = currentSlide.overlays.find(o => o.id === id);
+      if (overlay && overlay.type === 'text') {
+        updateControlsPosition(stageRef.current?.findOne('#' + id) as Konva.Node);
+      }
     }
   };
 
-  const handleObjectMoving = (e: fabric.IEvent) => {
-    const movingObject = e.target;
-    if (!movingObject || !currentSlide) return;
-    
-    updateControlsPosition(movingObject);
-    
-    // Get overlay ID directly from the fabric object
-    const overlayId = movingObject.get('overlayId');
-    if (!overlayId) return;
-    
-    if (movingObject instanceof fabric.Textbox) {
-      const { left, top } = movingObject;
-      
-      // Only update position during move for performance
-      updateOverlay(currentSlide.id, overlayId, {
-        position: {
-          x: left ?? 0,
-          y: top ?? 0
-        }
-      });
+  const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    // Clicked on an empty area of the stage
+    const clickedOnEmpty = e.target === e.target.getStage();
+    if (clickedOnEmpty) {
+      setSelectedId(null);
     }
   };
 
-  const handleTextChanged = (e: fabric.IEvent) => {
-    const textObject = e.target;
-    if (!textObject || !currentSlide) return;
-
-    // Get overlay ID directly from the fabric object
-    const overlayId = textObject.get('overlayId');
-    if (!overlayId) return;
-
-    if (textObject instanceof fabric.Textbox) {
-      // Only update the text content
-      updateOverlay(currentSlide.id, overlayId, {
-        text: textObject.text ?? ''
-      });
-      
-      updateControlsPosition(textObject);
-    }
-  };
-
-  const handleSelectionCreated = (e: fabric.IEvent) => {
-    const selected = e.selected?.[0];
-    if (!selected || !currentSlide) return;
-
-    // Get overlay ID directly from the fabric object
-    const overlayId = selected.get('overlayId');
-    if (!overlayId) return;
+  const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>, id: string) => {
+    if (!currentSlide) return;
     
-    // Find the overlay by ID
-    const overlay = currentSlide.overlays.find(o => o.id === overlayId);
-    if (overlay) {
-      setSelectedOverlay(overlay);
-      updateControlsPosition(selected);
-    }
+    const node = e.target;
+    
+    // Update position in state
+    updateOverlay(currentSlide.id, id, {
+      position: {
+        x: node.x(),
+        y: node.y()
+      }
+    });
+    
+    // Update control position
+    updateControlsPosition(node);
   };
 
-  const handleSelectionCleared = () => {
-    setSelectedOverlay(null);
-    setIsEditing(false);
+  const handleTransformEnd = (e: Konva.KonvaEventObject<Event>, id: string) => {
+    if (!currentSlide) return;
+    
+    const node = e.target;
+    
+    // Get the updated properties after transformation
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    const rotation = node.rotation();
+    
+    // Update state with new transformation data
+    updateOverlay(currentSlide.id, id, {
+      angle: rotation,
+      scaleX: scaleX,
+      scaleY: scaleY,
+      width: node.width() * scaleX,
+      height: node.height() * scaleY,
+      position: {
+        x: node.x(),
+        y: node.y()
+      }
+    });
+
+    // Update control position
+    updateControlsPosition(node);
   };
 
-  // UI-initiated changes
-  const handleStyleChange = (property: string, value: any) => {
-    if (!currentSlide || !selectedOverlay || !fabricCanvasRef.current) return;
-
-    const canvas = fabricCanvasRef.current;
-    const activeObject = canvas.getActiveObject();
-    if (!activeObject || !(activeObject instanceof fabric.Textbox)) return;
-
-    // Preserve current transformation state
-    const currentTransform = {
-      left: activeObject.left,
-      top: activeObject.top,
-      angle: activeObject.angle,
-      scaleX: activeObject.scaleX,
-      scaleY: activeObject.scaleY,
-      width: activeObject.width,
-      height: activeObject.height
+  const handleTextDblClick = (e: Konva.KonvaEventObject<MouseEvent>, id: string) => {
+    if (!currentSlide) return;
+    
+    const textNode = e.target as Konva.Text;
+    
+    // Enable text editing
+    textNode.hide();
+    transformerRef.current?.hide();
+    
+    // Create a textarea for editing
+    const textPosition = textNode.absolutePosition();
+    const stageBox = stageRef.current?.container().getBoundingClientRect();
+    
+    if (!stageBox) return;
+    
+    const areaPosition = {
+      x: stageBox.left + textPosition.x,
+      y: stageBox.top + textPosition.y
     };
+    
+    // Create textarea
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    
+    textarea.value = textNode.text();
+    textarea.style.position = 'absolute';
+    textarea.style.top = `${areaPosition.y}px`;
+    textarea.style.left = `${areaPosition.x}px`;
+    textarea.style.width = `${textNode.width() * textNode.scaleX()}px`;
+    textarea.style.height = `${textNode.height() * textNode.scaleY()}px`;
+    textarea.style.fontSize = `${textNode.fontSize() * textNode.scaleY()}px`;
+    textarea.style.border = '1px solid black';
+    textarea.style.padding = '5px';
+    textarea.style.overflow = 'hidden';
+    textarea.style.background = 'white';
+    textarea.style.outline = 'none';
+    textarea.style.resize = 'none';
+    textarea.style.fontFamily = textNode.fontFamily();
+    textarea.style.textAlign = textNode.align();
+    textarea.style.color = textNode.fill();
+    
+    textarea.focus();
+    
+    setIsEditing(true);
+    
+    textarea.addEventListener('keydown', function(e) {
+      // On enter without shift, complete editing
+      if (e.key === 'Enter' && !e.shiftKey) {
+        textNode.text(textarea.value);
+        removeTextarea();
+        
+        // Update state
+        updateOverlay(currentSlide.id, id, {
+          text: textarea.value
+        });
+      }
+      
+      // On escape, cancel editing
+      if (e.key === 'Escape') {
+        removeTextarea();
+      }
+    });
+    
+    textarea.addEventListener('blur', function() {
+      textNode.text(textarea.value);
+      removeTextarea();
+      
+      // Update state
+      updateOverlay(currentSlide.id, id, {
+        text: textarea.value
+      });
+    });
+    
+    function removeTextarea() {
+      textarea.parentNode?.removeChild(textarea);
+      window.removeEventListener('click', handleOutsideClick);
+      textNode.show();
+      transformerRef.current?.show();
+      layerRef.current?.batchDraw();
+      setIsEditing(false);
+    }
+    
+    function handleOutsideClick(e: MouseEvent) {
+      if (e.target !== textarea) {
+        textNode.text(textarea.value);
+        removeTextarea();
+      }
+    }
+    
+    setTimeout(() => {
+      window.addEventListener('click', handleOutsideClick);
+    });
+  };
 
-    // Direct fabric.js modification first
+  const handleStyleChange = (property: string, value: any) => {
+    if (!currentSlide || !selectedId) return;
+    
+    const overlay = currentSlide.overlays.find(o => o.id === selectedId);
+    if (!overlay || overlay.type !== 'text') return;
+    
+    let newValue = value;
+    
     switch (property) {
-      case 'fontFamily':
-        activeObject.set('fontFamily', value);
-        break;
-      case 'fontSize':
-        const size = parseInt(value);
-        activeObject.set('fontSize', size);
-        break;
       case 'fontWeight':
-        const newWeight = activeObject.get('fontWeight') === 'bold' ? 'normal' : 'bold';
-        activeObject.set('fontWeight', newWeight);
-        value = newWeight; // Store the actual value
+        newValue = overlay.data.fontWeight === 'bold' ? 'normal' : 'bold';
         break;
       case 'fontStyle':
-        const newStyle = activeObject.get('fontStyle') === 'italic' ? 'normal' : 'italic';
-        activeObject.set('fontStyle', newStyle);
-        value = newStyle; // Store the actual value
-        break;
-      case 'textAlign':
-        activeObject.set('textAlign', value);
+        newValue = overlay.data.fontStyle === 'italic' ? 'normal' : 'italic';
         break;
     }
-
-    // Preserve position and transformation
-    activeObject.set({
-      left: currentTransform.left,
-      top: currentTransform.top,
-      angle: currentTransform.angle,
-      scaleX: currentTransform.scaleX,
-      scaleY: currentTransform.scaleY
+    
+    // Update overlay data in state
+    updateOverlay(currentSlide.id, selectedId, {
+      [property]: newValue
     });
     
-    // Update coordinates to ensure proper positioning
-    activeObject.setCoords();
-    
-    // Update React state with the style change
-    const updates = {
-      [property]: value,
-      // Preserve position and transformation
-      position: {
-        x: currentTransform.left ?? 0,
-        y: currentTransform.top ?? 0
-      },
-      angle: currentTransform.angle ?? 0,
-      scaleX: currentTransform.scaleX ?? 1,
-      scaleY: currentTransform.scaleY ?? 1,
-      width: currentTransform.width,
-      height: currentTransform.height
-    };
-    
-    // Update context
-    updateOverlay(currentSlide.id, selectedOverlay.id, updates);
-    
-    // Ensure object remains selected
-    canvas.setActiveObject(activeObject);
-    canvas.requestRenderAll();
-    
-    // Update controls position
-    updateControlsPosition(activeObject);
+    // Find and update the Konva node
+    const textNode = stageRef.current?.findOne('#' + selectedId) as Konva.Text;
+    if (textNode) {
+      switch (property) {
+        case 'fontFamily':
+          textNode.fontFamily(newValue);
+          break;
+        case 'fontSize':
+          textNode.fontSize(parseInt(newValue));
+          break;
+        case 'fontWeight':
+        case 'fontStyle':
+          // Combine font weight and style
+          const fontStyle = (
+            (property === 'fontWeight' ? newValue : overlay.data.fontWeight) === 'bold' &&
+            (property === 'fontStyle' ? newValue : overlay.data.fontStyle) === 'italic'
+          ) ? 'bold italic' : (
+            (property === 'fontWeight' ? newValue : overlay.data.fontWeight) === 'bold' ? 'bold' :
+            (property === 'fontStyle' ? newValue : overlay.data.fontStyle) === 'italic' ? 'italic' : 'normal'
+          );
+          textNode.fontStyle(fontStyle);
+          break;
+        case 'textAlign':
+          textNode.align(newValue);
+          break;
+      }
+      
+      // Update the layer
+      layerRef.current?.batchDraw();
+      
+      // Update transformer
+      transformerRef.current?.forceUpdate();
+      
+      // Update controls position
+      updateControlsPosition(textNode);
+    }
   };
 
   const handleDelete = () => {
-    if (!currentSlide || !selectedOverlay || !fabricCanvasRef.current) return;
+    if (!currentSlide || !selectedId) return;
     
-    // Direct fabric.js modification
-    const activeObject = fabricCanvasRef.current.getActiveObject();
-    if (activeObject) {
-      fabricCanvasRef.current.remove(activeObject);
-      
-      // Then update React state
-      deleteOverlay(currentSlide.id, selectedOverlay.id);
-      setSelectedOverlay(null);
-    }
+    // Delete overlay from state
+    deleteOverlay(currentSlide.id, selectedId);
+    
+    // Clear selection
+    setSelectedId(null);
   };
+
+  if (!currentSlide) return null;
+
+  const { width, height } = getCanvasSize(currentSlide.aspectRatio);
+  
+  // Extract the selected overlay for the toolbar
+  const selectedOverlay = selectedId 
+    ? currentSlide.overlays.find(o => o.id === selectedId) 
+    : null;
 
   return (
     <div className="relative flex justify-center items-center w-full max-h-[70vh] overflow-hidden">
-      <div className="canvas-container relative shadow-xl">
-        <canvas ref={canvasRef} className="border border-gray-200 rounded" />
+      <div className="relative shadow-xl">
+        <Stage
+          ref={stageRef}
+          width={width}
+          height={height}
+          onClick={handleStageClick}
+          className="border border-gray-200 rounded"
+        >
+          <Layer ref={layerRef}>
+            {/* Background */}
+            {currentSlide.background.type === 'color' ? (
+              <Konva.Rect
+                x={0}
+                y={0}
+                width={width}
+                height={height}
+                fill={currentSlide.background.value}
+              />
+            ) : backgroundImage && (
+              <Image
+                image={backgroundImage}
+                width={width}
+                height={height}
+              />
+            )}
+            
+            {/* Text Overlays */}
+            {currentSlide.overlays.map((overlay) => {
+              if (overlay.type === 'text') {
+                const textConfig = createTextConfig(overlay);
+                return (
+                  <Text
+                    key={overlay.id}
+                    id={overlay.id}
+                    {...textConfig}
+                    onClick={() => handleSelect(overlay.id)}
+                    onDblClick={(e) => handleTextDblClick(e, overlay.id)}
+                    onDragEnd={(e) => handleDragEnd(e, overlay.id)}
+                    onTransformEnd={(e) => handleTransformEnd(e, overlay.id)}
+                  />
+                );
+              }
+              return null;
+            })}
+            
+            {/* Transformer for selections */}
+            <Transformer
+              ref={transformerRef}
+              boundBoxFunc={(oldBox, newBox) => {
+                // Limit size to a reasonable value to prevent text scaling issues
+                if (newBox.width < 10 || newBox.height < 10) {
+                  return oldBox;
+                }
+                return newBox;
+              }}
+              enabledAnchors={[
+                'top-left', 'top-right', 
+                'bottom-left', 'bottom-right',
+                'middle-left', 'middle-right'
+              ]}
+              rotateEnabled={true}
+              resizeEnabled={true}
+            />
+          </Layer>
+        </Stage>
+        
+        {/* Text controls */}
         {selectedOverlay && selectedOverlay.type === 'text' && !isEditing && (
           <div 
             className="fixed z-50 bg-background border rounded-lg shadow-lg p-2 flex gap-2 items-center"
