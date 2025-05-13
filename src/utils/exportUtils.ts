@@ -119,7 +119,7 @@ export const exportAllSlides = async (
             slide.overlays.forEach(overlay => {
               if (overlay.type === 'text') {
                 const { data, position } = overlay;
-                const textObject = new fabric.Text(data.text, {
+                const textObject = new fabric.Textbox(data.text, {
                   left: position?.x ?? fabricCanvas.width! / 2,
                   top: position?.y ?? fabricCanvas.height! / 2,
                   fontFamily: data.fontFamily,
@@ -131,7 +131,11 @@ export const exportAllSlides = async (
                   stroke: data.stroke,
                   strokeWidth: data.strokeWidth,
                   originX: 'center',
-                  originY: 'center'
+                  originY: 'center',
+                  angle: data.angle ?? 0,
+                  scaleX: data.scaleX ?? 1,
+                  scaleY: data.scaleY ?? 1,
+                  width: 200
                 });
                 fabricCanvas.add(textObject);
               }
@@ -158,7 +162,7 @@ export const exportAllSlides = async (
         slide.overlays.forEach(overlay => {
           if (overlay.type === 'text') {
             const { data, position } = overlay;
-            const textObject = new fabric.Text(data.text, {
+            const textObject = new fabric.Textbox(data.text, {
               left: position?.x ?? fabricCanvas.width! / 2,
               top: position?.y ?? fabricCanvas.height! / 2,
               fontFamily: data.fontFamily,
@@ -170,7 +174,11 @@ export const exportAllSlides = async (
               stroke: data.stroke,
               strokeWidth: data.strokeWidth,
               originX: 'center',
-              originY: 'center'
+              originY: 'center',
+              angle: data.angle ?? 0,
+              scaleX: data.scaleX ?? 1,
+              scaleY: data.scaleY ?? 1,
+              width: 200
             });
             fabricCanvas.add(textObject);
           }
