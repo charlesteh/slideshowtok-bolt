@@ -252,12 +252,12 @@ const SlideCanvas: React.FC = () => {
     textarea.style.border = '2px solid #3b82f6';
     textarea.style.padding = '5px';
     textarea.style.overflow = 'hidden';
-    textarea.style.background = 'white';
+    textarea.style.background = 'black';
+    textarea.style.color = 'white';
     textarea.style.outline = 'none';
     textarea.style.resize = 'none';
     textarea.style.fontFamily = textNode.fontFamily();
     textarea.style.textAlign = textNode.align();
-    textarea.style.color = textNode.fill();
     textarea.style.lineHeight = '1.2';
     textarea.style.zIndex = '10000';
     textarea.style.transform = `rotate(${textNode.rotation()}deg)`;
@@ -494,6 +494,9 @@ const SlideCanvas: React.FC = () => {
                     onDblClick={(e) => handleTextDblClick(e, overlay.id)}
                     onDragEnd={(e) => handleDragEnd(e, overlay.id)}
                     onTransformEnd={(e) => handleTransformEnd(e, overlay.id)}
+                    // Enable text wrapping
+                    width={textConfig.width}
+                    wrap="word"
                     ref={(node) => {
                       if (node) {
                         registerTextNode(overlay.id, node);
@@ -542,14 +545,13 @@ const SlideCanvas: React.FC = () => {
                 ref={controlsTextAreaRef}
                 value={selectedOverlay.data.text}
                 onChange={handleControlsTextChange}
-                className="w-full p-2 border rounded-md resize-none"
+                className="w-full p-2 border rounded-md resize-none bg-black text-white"
                 style={{
                   fontFamily: selectedOverlay.data.fontFamily,
                   fontSize: `${Math.min(selectedOverlay.data.fontSize, 24)}px`,
                   fontWeight: selectedOverlay.data.fontWeight,
                   fontStyle: selectedOverlay.data.fontStyle,
                   textAlign: selectedOverlay.data.textAlign as any,
-                  color: selectedOverlay.data.fill,
                   lineHeight: '1.2',
                   minHeight: '60px'
                 }}

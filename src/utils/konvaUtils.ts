@@ -44,8 +44,9 @@ export const createTextConfig = (overlay: OverlayType) => {
     // Center the text around its position
     offsetX: width / 2,
     offsetY: height / 2,
-    // Remove fixed line height
-    lineHeight: 1.2
+    // Enable text wrapping
+    wrap: 'word',
+    lineHeight: 1.2,
   };
 };
 

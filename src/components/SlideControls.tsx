@@ -33,6 +33,9 @@ const SlideControls: React.FC = () => {
   };
   
   const handleAddTextOverlay = () => {
+    const aspectRatioConfig = ASPECT_RATIOS[currentSlide.aspectRatio];
+    const width = aspectRatioConfig.width * 0.8; // 80% of slide width
+    
     addOverlay(currentSlide.id, {
       type: 'text',
       data: {
@@ -44,7 +47,8 @@ const SlideControls: React.FC = () => {
         textAlign: 'center',
         fill: '#ffffff',
         stroke: '#000000',
-        strokeWidth: 0
+        strokeWidth: 0,
+        width: width
       },
       position: {
         x: ASPECT_RATIOS[currentSlide.aspectRatio].width / 2,
