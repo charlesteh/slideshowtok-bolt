@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Stage, Layer, Text, Image as KonvaImage, Group, Transformer } from 'react-konva';
+import { Stage, Layer, Text, Image as KonvaImage, Transformer } from 'react-konva';
 import { useSlideContext } from '../context/SlideContext';
 import { OverlayType } from '../types';
 import { getCanvasSize, createTextConfig } from '../utils/konvaUtils';
@@ -20,6 +20,7 @@ const SlideCanvas: React.FC = () => {
   const stageRef = useRef<Konva.Stage>(null);
   const layerRef = useRef<Konva.Layer>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
+  const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [controlsPosition, setControlsPosition] = useState({ top: 0, left: 0 });
@@ -27,6 +28,14 @@ const SlideCanvas: React.FC = () => {
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
   
   const currentSlide = getCurrentSlide();
+
+  // Track text nodes with a ref to avoid stale references
+  useEffect(() => {
+    textNodesRef.current = new Map();
+    return () => {
+      textNodesRef.current.clear();
+    };
+  }, []);
 
   // Load background image when slide changes
   useEffect(() => {
@@ -43,25 +52,47 @@ const SlideCanvas: React.FC = () => {
     };
   }, [currentSlide?.id, currentSlide?.background.value, currentSlide?.background.type]);
 
+  // Clear selection when slide changes
+  useEffect(() => {
+    setSelectedId(null);
+    if (transformerRef.current) {
+      transformerRef.current.nodes([]);
+      transformerRef.current.getLayer()?.batchDraw();
+    }
+  }, [currentSlide?.id]);
+
   // Attach transformer to selected node
   useEffect(() => {
-    if (!selectedId || !transformerRef.current || !stageRef.current) return;
-
-    const stage = stageRef.current;
+    if (!transformerRef.current || !layerRef.current) return;
+    
     const transformer = transformerRef.current;
     
-    // Find the node by id
-    const selectedNode = stage.findOne('#' + selectedId);
-    
-    if (selectedNode) {
-      // Attach transformer to the node
-      transformer.nodes([selectedNode as Konva.Node]);
-      transformer.getLayer()?.batchDraw();
-
-      // Update controls position
-      updateControlsPosition(selectedNode as Konva.Node);
+    if (selectedId) {
+      // Find the node by name or id
+      const selectedNode = textNodesRef.current.get(selectedId);
+      
+      if (selectedNode) {
+        // Check if the node is still in the layer
+        if (selectedNode.getLayer()) {
+          // Attach transformer to the node
+          transformer.nodes([selectedNode]);
+          transformer.getLayer()?.batchDraw();
+          
+          // Update controls position
+          updateControlsPosition(selectedNode);
+        } else {
+          // Node no longer in layer, clear selection
+          transformer.nodes([]);
+          transformer.getLayer()?.batchDraw();
+          setSelectedId(null);
+        }
+      } else {
+        // No node found, clear transformer
+        transformer.nodes([]);
+        transformer.getLayer()?.batchDraw();
+      }
     } else {
-      // No selected node, clear transformer
+      // No selection, clear transformer
       transformer.nodes([]);
       transformer.getLayer()?.batchDraw();
     }
@@ -70,28 +101,30 @@ const SlideCanvas: React.FC = () => {
   const updateControlsPosition = (node: Konva.Node) => {
     if (!stageRef.current || !node) return;
     
-    const stage = stageRef.current;
-    
-    // Get absolute position on the page
-    const stageBox = stage.container().getBoundingClientRect();
-    const box = node.getClientRect();
-    
-    setControlsPosition({
-      top: stageBox.top + box.y + box.height + 10,
-      left: stageBox.left + box.x + box.width / 2
-    });
+    try {
+      const stage = stageRef.current;
+      
+      // Get absolute position on the page
+      const stageBox = stage.container().getBoundingClientRect();
+      const box = node.getClientRect();
+      
+      setControlsPosition({
+        top: stageBox.top + box.y + box.height + 10,
+        left: stageBox.left + box.x + box.width / 2
+      });
+    } catch (error) {
+      console.error("Error updating controls position:", error);
+    }
   };
 
   const handleSelect = (id: string) => {
-    setSelectedId(id);
-    
-    // Find the current overlay
-    if (currentSlide) {
-      const overlay = currentSlide.overlays.find(o => o.id === id);
-      if (overlay && overlay.type === 'text') {
-        updateControlsPosition(stageRef.current?.findOne('#' + id) as Konva.Node);
-      }
+    // Deselect if clicking the same node
+    if (id === selectedId) {
+      setSelectedId(null);
+      return;
     }
+    
+    setSelectedId(id);
   };
 
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -122,7 +155,7 @@ const SlideCanvas: React.FC = () => {
   const handleTransformEnd = (e: Konva.KonvaEventObject<Event>, id: string) => {
     if (!currentSlide) return;
     
-    const node = e.target;
+    const node = e.target as Konva.Text;
     
     // Get the updated properties after transformation
     const scaleX = node.scaleX();
@@ -153,7 +186,9 @@ const SlideCanvas: React.FC = () => {
     
     // Enable text editing
     textNode.hide();
-    transformerRef.current?.hide();
+    if (transformerRef.current) {
+      transformerRef.current.hide();
+    }
     
     // Create a textarea for editing
     const textPosition = textNode.absolutePosition();
@@ -223,8 +258,12 @@ const SlideCanvas: React.FC = () => {
       textarea.parentNode?.removeChild(textarea);
       window.removeEventListener('click', handleOutsideClick);
       textNode.show();
-      transformerRef.current?.show();
-      layerRef.current?.batchDraw();
+      if (transformerRef.current) {
+        transformerRef.current.show();
+      }
+      if (layerRef.current) {
+        layerRef.current.batchDraw();
+      }
       setIsEditing(false);
     }
     
@@ -263,40 +302,48 @@ const SlideCanvas: React.FC = () => {
     });
     
     // Find and update the Konva node
-    const textNode = stageRef.current?.findOne('#' + selectedId) as Konva.Text;
+    const textNode = textNodesRef.current.get(selectedId);
     if (textNode) {
-      switch (property) {
-        case 'fontFamily':
-          textNode.fontFamily(newValue);
-          break;
-        case 'fontSize':
-          textNode.fontSize(parseInt(newValue));
-          break;
-        case 'fontWeight':
-        case 'fontStyle':
-          // Combine font weight and style
-          const fontStyle = (
-            (property === 'fontWeight' ? newValue : overlay.data.fontWeight) === 'bold' &&
-            (property === 'fontStyle' ? newValue : overlay.data.fontStyle) === 'italic'
-          ) ? 'bold italic' : (
-            (property === 'fontWeight' ? newValue : overlay.data.fontWeight) === 'bold' ? 'bold' :
-            (property === 'fontStyle' ? newValue : overlay.data.fontStyle) === 'italic' ? 'italic' : 'normal'
-          );
-          textNode.fontStyle(fontStyle);
-          break;
-        case 'textAlign':
-          textNode.align(newValue);
-          break;
+      try {
+        switch (property) {
+          case 'fontFamily':
+            textNode.fontFamily(newValue);
+            break;
+          case 'fontSize':
+            textNode.fontSize(parseInt(newValue));
+            break;
+          case 'fontWeight':
+          case 'fontStyle':
+            // Combine font weight and style
+            const fontStyle = (
+              (property === 'fontWeight' ? newValue : overlay.data.fontWeight) === 'bold' &&
+              (property === 'fontStyle' ? newValue : overlay.data.fontStyle) === 'italic'
+            ) ? 'bold italic' : (
+              (property === 'fontWeight' ? newValue : overlay.data.fontWeight) === 'bold' ? 'bold' :
+              (property === 'fontStyle' ? newValue : overlay.data.fontStyle) === 'italic' ? 'italic' : 'normal'
+            );
+            textNode.fontStyle(fontStyle);
+            break;
+          case 'textAlign':
+            textNode.align(newValue);
+            break;
+        }
+        
+        // Update the layer
+        if (layerRef.current) {
+          layerRef.current.batchDraw();
+        }
+        
+        // Update transformer
+        if (transformerRef.current) {
+          transformerRef.current.forceUpdate();
+        }
+        
+        // Update controls position
+        updateControlsPosition(textNode);
+      } catch (error) {
+        console.error("Error updating text style:", error);
       }
-      
-      // Update the layer
-      layerRef.current?.batchDraw();
-      
-      // Update transformer
-      transformerRef.current?.forceUpdate();
-      
-      // Update controls position
-      updateControlsPosition(textNode);
     }
   };
 
@@ -306,8 +353,17 @@ const SlideCanvas: React.FC = () => {
     // Delete overlay from state
     deleteOverlay(currentSlide.id, selectedId);
     
+    // Remove from node map
+    textNodesRef.current.delete(selectedId);
+    
     // Clear selection
     setSelectedId(null);
+  };
+
+  // Function to register text nodes as they are created in the render
+  const registerTextNode = (id: string, node: Konva.Text) => {
+    // Update the node reference map
+    textNodesRef.current.set(id, node);
   };
 
   if (!currentSlide) return null;
@@ -355,11 +411,17 @@ const SlideCanvas: React.FC = () => {
                   <Text
                     key={overlay.id}
                     id={overlay.id}
+                    name={overlay.id}
                     {...textConfig}
                     onClick={() => handleSelect(overlay.id)}
                     onDblClick={(e) => handleTextDblClick(e, overlay.id)}
                     onDragEnd={(e) => handleDragEnd(e, overlay.id)}
                     onTransformEnd={(e) => handleTransformEnd(e, overlay.id)}
+                    ref={(node) => {
+                      if (node) {
+                        registerTextNode(overlay.id, node);
+                      }
+                    }}
                   />
                 );
               }

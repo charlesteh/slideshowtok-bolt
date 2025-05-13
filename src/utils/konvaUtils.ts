@@ -12,13 +12,20 @@ export const getCanvasSize = (aspectRatio: AspectRatioType) => {
 export const createTextConfig = (overlay: OverlayType) => {
   const { data, position } = overlay;
   
+  // Ensure we have valid values for all properties
+  const fontSize = data.fontSize || 36;
+  const width = data.width || 200;
+  const height = data.height || 50;
+  const scaleX = data.scaleX || 1;
+  const scaleY = data.scaleY || 1;
+  
   return {
     id: overlay.id,
     text: data.text,
     x: position?.x ?? 0,
     y: position?.y ?? 0,
     fontFamily: data.fontFamily,
-    fontSize: data.fontSize,
+    fontSize: fontSize,
     fontStyle: data.fontWeight === 'bold' 
       ? (data.fontStyle === 'italic' ? 'bold italic' : 'bold') 
       : (data.fontStyle === 'italic' ? 'italic' : 'normal'),
@@ -27,15 +34,16 @@ export const createTextConfig = (overlay: OverlayType) => {
     stroke: data.stroke,
     strokeWidth: data.strokeWidth,
     rotation: data.angle ?? 0,
-    scaleX: data.scaleX ?? 1,
-    scaleY: data.scaleY ?? 1,
-    width: data.width ?? 200,
+    scaleX: scaleX,
+    scaleY: scaleY,
+    width: width,
+    height: height,
     draggable: true,
     perfectDrawEnabled: false,
     transformsEnabled: 'all',
     // Center the text around its position
-    offsetX: (data.width ?? 200) / 2,
-    offsetY: (data.height ?? 50) / 2
+    offsetX: width / 2,
+    offsetY: height / 2
   };
 };
 
