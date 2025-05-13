@@ -120,7 +120,7 @@ const SlideCanvas: React.FC = () => {
       
       // Position the button directly below the center of the text
       setControlsPosition({
-        top: stageBox.top + nodeBox.y + nodeBox.height + 10, // Position below the text
+        top: stageBox.top + nodeBox.y + nodeBox.height + 2, // Position directly below the text
         left: stageBox.left + nodeBox.x + nodeBox.width / 2, // Center horizontally
       });
     } catch (error) {
@@ -625,6 +625,14 @@ const SlideCanvas: React.FC = () => {
                 title="Increase font size"
               >
                 <Plus size={16} className="text-gray-700" />
+              </button>
+              
+              <button
+                className="bg-white shadow-md rounded-full p-2 border border-gray-300 hover:bg-gray-50"
+                onClick={() => setShowControls(!showControls)}
+                title="Edit text settings"
+              >
+                <Settings size={16} className="text-gray-700" />
               </button>
               
               <button
