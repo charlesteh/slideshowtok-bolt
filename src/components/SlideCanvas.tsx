@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
-import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, Type, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, Type, Trash2 } from 'lucide-react';
 import { FONT_FAMILIES, FONT_SIZES } from '../constants';
 import Konva from 'konva';
 import ColorPicker from './ColorPicker';
@@ -23,12 +23,12 @@ const SlideCanvas: React.FC = () => {
   const layerRef = useRef<Konva.Layer>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [controlsPosition, setControlsPosition] = useState({ top: 0, left: 0 });
   const [isEditing, setIsEditing] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
-  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   
   const currentSlide = getCurrentSlide();
 
@@ -182,8 +182,35 @@ const SlideCanvas: React.FC = () => {
     updateControlsPosition(node);
   };
 
+  const cleanupTextarea = () => {
+    if (textareaRef.current) {
+      document.body.removeChild(textareaRef.current);
+      textareaRef.current = null;
+    }
+    window.removeEventListener('mousedown', handleOutsideClick);
+    setIsEditing(false);
+  };
+
+  const handleOutsideClick = (e: MouseEvent) => {
+    if (textareaRef.current && e.target !== textareaRef.current) {
+      const textNode = textNodesRef.current.get(selectedId || '');
+      if (textNode && textareaRef.current) {
+        textNode.text(textareaRef.current.value);
+        
+        // Update state
+        if (currentSlide && selectedId) {
+          updateOverlay(currentSlide.id, selectedId, {
+            text: textareaRef.current.value
+          });
+        }
+      }
+      cleanupTextarea();
+    }
+  };
+
   const handleTextDblClick = (e: Konva.KonvaEventObject<MouseEvent>, id: string) => {
     if (!currentSlide) return;
+    e.evt.preventDefault();
     
     const textNode = e.target as Konva.Text;
     
@@ -204,8 +231,14 @@ const SlideCanvas: React.FC = () => {
       y: stageBox.top + textPosition.y
     };
     
+    // Remove existing textarea if any
+    if (textareaRef.current) {
+      cleanupTextarea();
+    }
+    
     // Create textarea
     const textarea = document.createElement('textarea');
+    textareaRef.current = textarea;
     document.body.appendChild(textarea);
     
     textarea.value = textNode.text();
@@ -215,7 +248,7 @@ const SlideCanvas: React.FC = () => {
     textarea.style.width = `${textNode.width() * textNode.scaleX()}px`;
     textarea.style.height = `${textNode.height() * textNode.scaleY()}px`;
     textarea.style.fontSize = `${textNode.fontSize() * textNode.scaleY()}px`;
-    textarea.style.border = '1px solid black';
+    textarea.style.border = '2px solid #3b82f6';
     textarea.style.padding = '5px';
     textarea.style.overflow = 'hidden';
     textarea.style.background = 'white';
@@ -225,6 +258,8 @@ const SlideCanvas: React.FC = () => {
     textarea.style.textAlign = textNode.align();
     textarea.style.color = textNode.fill();
     textarea.style.lineHeight = '1.2';
+    textarea.style.zIndex = '10000';
+    textarea.style.transform = `rotate(${textNode.rotation()}deg)`;
     
     textarea.focus();
     
@@ -233,34 +268,49 @@ const SlideCanvas: React.FC = () => {
     textarea.addEventListener('keydown', function(e) {
       // On enter without shift, complete editing
       if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
         textNode.text(textarea.value);
-        removeTextarea();
         
         // Update state
         updateOverlay(currentSlide.id, id, {
           text: textarea.value
         });
+        
+        cleanupTextarea();
+        
+        textNode.show();
+        if (transformerRef.current) {
+          transformerRef.current.show();
+        }
+        if (layerRef.current) {
+          layerRef.current.batchDraw();
+        }
       }
       
       // On escape, cancel editing
       if (e.key === 'Escape') {
-        removeTextarea();
+        cleanupTextarea();
+        
+        textNode.show();
+        if (transformerRef.current) {
+          transformerRef.current.show();
+        }
+        if (layerRef.current) {
+          layerRef.current.batchDraw();
+        }
       }
     });
     
     textarea.addEventListener('blur', function() {
       textNode.text(textarea.value);
-      removeTextarea();
       
       // Update state
       updateOverlay(currentSlide.id, id, {
         text: textarea.value
       });
-    });
-    
-    function removeTextarea() {
-      textarea.parentNode?.removeChild(textarea);
-      window.removeEventListener('click', handleOutsideClick);
+      
+      cleanupTextarea();
+      
       textNode.show();
       if (transformerRef.current) {
         transformerRef.current.show();
@@ -268,18 +318,10 @@ const SlideCanvas: React.FC = () => {
       if (layerRef.current) {
         layerRef.current.batchDraw();
       }
-      setIsEditing(false);
-    }
-    
-    function handleOutsideClick(e: MouseEvent) {
-      if (e.target !== textarea) {
-        textNode.text(textarea.value);
-        removeTextarea();
-      }
-    }
+    });
     
     setTimeout(() => {
-      window.addEventListener('click', handleOutsideClick);
+      window.addEventListener('mousedown', handleOutsideClick);
     });
   };
 
@@ -569,45 +611,25 @@ const SlideCanvas: React.FC = () => {
               />
             </div>
             
-            {/* Row 4: Advanced Toggle */}
-            <button 
-              onClick={() => setShowAdvancedControls(!showAdvancedControls)}
-              className="flex items-center justify-center w-full text-xs text-blue-600 hover:underline border-t pt-1"
-            >
-              {showAdvancedControls ? (
-                <>
-                  <ChevronUp className="h-3 w-3 mr-1" />
-                  Hide Advanced
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="h-3 w-3 mr-1" />
-                  Show Advanced
-                </>
-              )}
-            </button>
-            
-            {/* Advanced Controls */}
-            {showAdvancedControls && (
-              <div className="mt-2 pt-2 border-t">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs text-gray-600">Outline Width: {selectedOverlay.data.strokeWidth}px</span>
-                  <ColorPicker 
-                    color={selectedOverlay.data.stroke}
-                    onChange={(color) => handleStyleChange('stroke', color)}
-                    label="Outline"
-                  />
-                </div>
-                <Slider
-                  value={[selectedOverlay.data.strokeWidth]}
-                  min={0}
-                  max={20}
-                  step={0.5}
-                  onValueChange={(value) => handleStyleChange('strokeWidth', value[0])}
-                  className="w-full mt-1"
+            {/* Outline Controls (always visible now) */}
+            <div className="mt-2 pt-2 border-t">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-gray-600">Outline Width: {selectedOverlay.data.strokeWidth}px</span>
+                <ColorPicker 
+                  color={selectedOverlay.data.stroke}
+                  onChange={(color) => handleStyleChange('stroke', color)}
+                  label="Outline"
                 />
               </div>
-            )}
+              <Slider
+                value={[selectedOverlay.data.strokeWidth]}
+                min={0}
+                max={20}
+                step={0.5}
+                onValueChange={(value) => handleStyleChange('strokeWidth', value[0])}
+                className="w-full mt-1"
+              />
+            </div>
           </div>
         )}
       </div>
