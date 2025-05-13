@@ -201,60 +201,75 @@ const SlideCanvas: React.FC = () => {
     const activeObject = canvas.getActiveObject();
     if (!activeObject || !(activeObject instanceof fabric.Textbox)) return;
 
-    // Store current state
-    const currentState = {
+    // Store current state before making changes
+    const currentProps = {
       left: activeObject.left,
       top: activeObject.top,
-      angle: activeObject.angle,
-      scaleX: activeObject.scaleX,
-      scaleY: activeObject.scaleY
+      width: activeObject.width,
+      height: activeObject.height,
+      angle: activeObject.angle || 0,
+      scaleX: activeObject.scaleX || 1,
+      scaleY: activeObject.scaleY || 1,
+      fontFamily: activeObject.fontFamily,
+      fontSize: activeObject.fontSize,
+      fontWeight: activeObject.fontWeight,
+      fontStyle: activeObject.fontStyle,
+      textAlign: activeObject.textAlign
     };
 
+    // Apply the style change directly to the fabric object
     switch (property) {
       case 'fontFamily':
         activeObject.set('fontFamily', value);
         break;
       case 'fontSize':
-        const size = parseInt(value);
-        activeObject.set('fontSize', size);
+        activeObject.set('fontSize', parseInt(value));
         break;
       case 'fontWeight':
         const newWeight = activeObject.get('fontWeight') === 'bold' ? 'normal' : 'bold';
         activeObject.set('fontWeight', newWeight);
+        value = newWeight; // Set value to the actual new state
         break;
       case 'fontStyle':
         const newStyle = activeObject.get('fontStyle') === 'italic' ? 'normal' : 'italic';
         activeObject.set('fontStyle', newStyle);
+        value = newStyle; // Set value to the actual new state
         break;
       case 'textAlign':
         activeObject.set('textAlign', value);
         break;
     }
 
-    // Update the overlay data with all current properties
-    const updates = {
-      ...selectedOverlay.data,
-      [property]: value,
-      angle: currentState.angle || 0,
-      scaleX: currentState.scaleX || 1,
-      scaleY: currentState.scaleY || 1
+    // Calculate the changes that need to be made to the overlay data
+    const updatedData = {
+      ...selectedOverlay.data
     };
     
-    // Preserve position
+    // Only update the specific property that changed
+    updatedData[property] = value;
+    
+    // Preserve position and transformation
     activeObject.set({
-      left: currentState.left,
-      top: currentState.top
+      left: currentProps.left,
+      top: currentProps.top,
+      angle: currentProps.angle,
+      scaleX: currentProps.scaleX,
+      scaleY: currentProps.scaleY
     });
     
-    // Update the overlay data
-    updateOverlay(currentSlide.id, selectedOverlay.id, updates);
-    
-    // Ensure object remains selected and visible
+    // Make sure the object is rendered correctly with the new style
     activeObject.setCoords();
+    
+    // Keep the object selected
     canvas.setActiveObject(activeObject);
+    
+    // Update state but minimize re-renders
+    updateOverlay(currentSlide.id, selectedOverlay.id, updatedData);
+    
+    // Request a render but only for this object
     canvas.requestRenderAll();
     
-    // Update controls position
+    // Make sure the controls stay in the right position
     updateControlsPosition(activeObject);
   };
 
