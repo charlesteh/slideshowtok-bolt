@@ -72,7 +72,7 @@ const SlideCanvas: React.FC = () => {
 
   const handleMouseDown = (e: fabric.IEvent) => {
     const activeObject = fabricCanvasRef.current?.getActiveObject();
-    if (activeObject instanceof fabric.Text) {
+    if (activeObject instanceof fabric.Textbox) {
       if (e.e && (e.e as MouseEvent).detail === 2) {
         activeObject.enterEditing();
         setIsEditing(true);
@@ -82,7 +82,7 @@ const SlideCanvas: React.FC = () => {
 
   const handleMouseUp = () => {
     const activeObject = fabricCanvasRef.current?.getActiveObject();
-    if (activeObject instanceof fabric.Text && !activeObject.isEditing) {
+    if (activeObject instanceof fabric.Textbox && !activeObject.isEditing) {
       setIsEditing(false);
     }
   };
@@ -104,7 +104,7 @@ const SlideCanvas: React.FC = () => {
     const modifiedObject = e.target;
     if (!modifiedObject || !currentSlide || !selectedOverlay) return;
 
-    if (modifiedObject instanceof fabric.Text) {
+    if (modifiedObject instanceof fabric.Textbox) {
       const { left, top, width, height, scaleX = 1, scaleY = 1 } = modifiedObject;
       updateOverlay(currentSlide.id, selectedOverlay.id, {
         position: {
@@ -124,7 +124,7 @@ const SlideCanvas: React.FC = () => {
     
     updateControlsPosition(movingObject);
     
-    if (movingObject instanceof fabric.Text) {
+    if (movingObject instanceof fabric.Textbox) {
       updateOverlay(currentSlide.id, selectedOverlay.id, {
         position: {
           x: movingObject.left ?? 0,
@@ -138,7 +138,7 @@ const SlideCanvas: React.FC = () => {
     const textObject = e.target;
     if (!textObject || !currentSlide || !selectedOverlay) return;
 
-    if (textObject instanceof fabric.Text) {
+    if (textObject instanceof fabric.Textbox) {
       updateOverlay(currentSlide.id, selectedOverlay.id, {
         text: textObject.text ?? ''
       });
@@ -153,7 +153,7 @@ const SlideCanvas: React.FC = () => {
     currentSlide.overlays.forEach(overlay => {
       if (overlay.type === 'text') {
         const textObject = fabricCanvasRef.current?.getObjects().find(
-          obj => obj instanceof fabric.Text && 
+          obj => obj instanceof fabric.Textbox && 
           obj.left === overlay.position?.x && 
           obj.top === overlay.position?.y
         );
@@ -175,7 +175,7 @@ const SlideCanvas: React.FC = () => {
     if (!currentSlide || !selectedOverlay || !fabricCanvasRef.current) return;
 
     const activeObject = fabricCanvasRef.current.getActiveObject();
-    if (!(activeObject instanceof fabric.Text)) return;
+    if (!(activeObject instanceof fabric.Textbox)) return;
 
     const updates: any = {};
 

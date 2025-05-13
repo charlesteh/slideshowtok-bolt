@@ -68,10 +68,10 @@ export const setBackgroundImage = (
 export const createTextObject = (
   overlay: OverlayType, 
   canvas: fabric.Canvas
-): fabric.Text => {
+): fabric.Textbox => {
   const { data, position } = overlay;
   
-  const textObject = new fabric.Text(data.text, {
+  const textObject = new fabric.Textbox(data.text, {
     left: position?.x ?? canvas.width! / 2,
     top: position?.y ?? canvas.height! / 2,
     fontFamily: data.fontFamily,
@@ -89,7 +89,7 @@ export const createTextObject = (
     borderColor: 'hsl(var(--primary))',
     cornerColor: 'hsl(var(--primary))',
     transparentCorners: false,
-    editable: true
+    width: 200
   });
   
   return textObject;
@@ -98,7 +98,7 @@ export const createTextObject = (
 export const loadSlideToCanvas = (
   canvas: fabric.Canvas, 
   slide: SlideType,
-  onTextObjectCreated: (overlay: OverlayType, textObject: fabric.Text) => void
+  onTextObjectCreated: (overlay: OverlayType, textObject: fabric.Textbox) => void
 ): void => {
   if (!canvas || !slide) return;
   
