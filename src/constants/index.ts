@@ -40,12 +40,18 @@ export const ASPECT_RATIOS: RatioMap = {
 
 export const FONT_FAMILIES = [
   'Arial',
-  'Helvetica',
-  'Times New Roman',
-  'Courier New',
-  'Georgia',
-  'Verdana',
-  'Comic Sans MS'
+  'Bungee',
+  'DM Serif Display',
+  'Fira Sans',
+  'Gabarito',
+  'Kanit',
+  'LEMON MILK',
+  'Lilita One',
+  'Mont Heavy',
+  'Montserrat',
+  'Poppins',
+  'Roboto',
+  'Rubik'
 ];
 
 export const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72];
@@ -53,7 +59,7 @@ export const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 7
 export const DEFAULT_TEXT = 'Click to edit text';
 
 export const DEFAULT_TEXT_STYLE = {
-  fontFamily: 'Arial',
+  fontFamily: 'Montserrat',
   fontSize: 36,
   fontWeight: 'normal',
   fontStyle: 'normal',
