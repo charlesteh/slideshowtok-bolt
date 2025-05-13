@@ -18,10 +18,10 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "fabric": "^5.3.0",
+    "fabricjs-react": "^2.1.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-fabricjs-wrapper": "^1.0.2",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^9.0.1"
