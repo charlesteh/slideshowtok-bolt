@@ -95,6 +95,9 @@ export const createTextObject = (
     scaleX: data.scaleX ?? 1,
     scaleY: data.scaleY ?? 1
   });
+  
+  // Store the overlay ID on the object for easier reference
+  textObject.set('overlayId', overlay.id);
 
   return textObject;
 };
@@ -106,20 +109,28 @@ export const loadSlideToCanvas = (
 ): void => {
   if (!canvas || !slide) return;
   
+  // Clear existing objects
   canvas.clear();
+  
+  // Update canvas size for the current aspect ratio
   updateCanvasSize(canvas, slide.aspectRatio);
   
+  // Set background
   if (slide.background.type === 'image') {
     setBackgroundImage(canvas, slide.background.value);
   } else {
     canvas.backgroundColor = slide.background.value;
   }
   
+  // Create all text overlays
   slide.overlays.forEach(overlay => {
     if (overlay.type === 'text') {
       const textObject = createTextObject(overlay, canvas);
       canvas.add(textObject);
-      onTextObjectCreated(overlay, textObject);
+      
+      if (onTextObjectCreated) {
+        onTextObjectCreated(overlay, textObject);
+      }
     }
   });
   

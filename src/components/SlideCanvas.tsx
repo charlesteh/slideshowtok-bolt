@@ -21,69 +21,70 @@ const SlideCanvas: React.FC = () => {
   const [selectedOverlay, setSelectedOverlay] = useState<OverlayType | null>(null);
   const [controlsPosition, setControlsPosition] = useState({ top: 0, left: 0 });
   const [isEditing, setIsEditing] = useState(false);
-  const [isMountingObject, setIsMountingObject] = useState(false);
   
   const currentSlide = getCurrentSlide();
 
-  // Initialize Fabric canvas
+  // Initialize the canvas once on component mount
   useEffect(() => {
-    if (!canvasRef.current || !currentSlide) return;
-
+    if (!canvasRef.current) return;
+    
+    // Only create the canvas once
     if (!fabricCanvasRef.current) {
-      fabricCanvasRef.current = initCanvas(canvasRef.current, currentSlide);
-      setupEventHandlers();
+      const canvas = initCanvas(canvasRef.current, currentSlide || {
+        id: 'temp',
+        aspectRatio: '4:5',
+        background: { type: 'color', value: '#ffffff' },
+        overlays: []
+      });
+      
+      fabricCanvasRef.current = canvas;
+      
+      // Set up event handlers - these remain even when slides change
+      canvas.on('mouse:down', handleMouseDown);
+      canvas.on('mouse:up', handleMouseUp);
+      canvas.on('object:modified', handleObjectModified);
+      canvas.on('selection:created', handleSelectionCreated);
+      canvas.on('selection:cleared', handleSelectionCleared);
+      canvas.on('text:changed', handleTextChanged);
+      canvas.on('object:moving', handleObjectMoving);
+      canvas.on('text:editing:entered', () => setIsEditing(true));
+      canvas.on('text:editing:exited', () => {
+        setIsEditing(false);
+        // Re-select the object after editing
+        const activeObject = canvas.getActiveObject();
+        if (activeObject) {
+          canvas.setActiveObject(activeObject);
+          updateControlsPosition(activeObject);
+        }
+      });
     }
-
-    loadSlideCanvas();
-
+    
+    // Cleanup event handlers when component unmounts
     return () => {
       if (fabricCanvasRef.current) {
-        removeEventHandlers();
+        fabricCanvasRef.current.off('mouse:down', handleMouseDown);
+        fabricCanvasRef.current.off('mouse:up', handleMouseUp);
+        fabricCanvasRef.current.off('object:modified', handleObjectModified);
+        fabricCanvasRef.current.off('selection:created', handleSelectionCreated);
+        fabricCanvasRef.current.off('selection:cleared', handleSelectionCleared);
+        fabricCanvasRef.current.off('text:changed', handleTextChanged);
+        fabricCanvasRef.current.off('object:moving', handleObjectMoving);
+        fabricCanvasRef.current.off('text:editing:entered');
+        fabricCanvasRef.current.off('text:editing:exited');
       }
     };
-  }, [currentSlide?.id]);
+  }, []);
 
-  // Setup canvas event handlers
-  const setupEventHandlers = () => {
-    if (!fabricCanvasRef.current) return;
-    
-    fabricCanvasRef.current.on('mouse:down', handleMouseDown);
-    fabricCanvasRef.current.on('mouse:up', handleMouseUp);
-    fabricCanvasRef.current.on('object:modified', handleObjectModified);
-    fabricCanvasRef.current.on('selection:created', handleSelectionCreated);
-    fabricCanvasRef.current.on('selection:cleared', handleSelectionCleared);
-    fabricCanvasRef.current.on('text:changed', handleTextChanged);
-    fabricCanvasRef.current.on('object:moving', handleObjectMoving);
-    fabricCanvasRef.current.on('text:editing:entered', handleTextEditingEntered);
-    fabricCanvasRef.current.on('text:editing:exited', handleTextEditingExited);
-  };
-
-  // Remove canvas event handlers
-  const removeEventHandlers = () => {
-    if (!fabricCanvasRef.current) return;
-    
-    fabricCanvasRef.current.off('mouse:down', handleMouseDown);
-    fabricCanvasRef.current.off('mouse:up', handleMouseUp);
-    fabricCanvasRef.current.off('object:modified', handleObjectModified);
-    fabricCanvasRef.current.off('selection:created', handleSelectionCreated);
-    fabricCanvasRef.current.off('selection:cleared', handleSelectionCleared);
-    fabricCanvasRef.current.off('text:changed', handleTextChanged);
-    fabricCanvasRef.current.off('object:moving', handleObjectMoving);
-    fabricCanvasRef.current.off('text:editing:entered', handleTextEditingEntered);
-    fabricCanvasRef.current.off('text:editing:exited', handleTextEditingExited);
-  };
-
-  // Load the slide content to the canvas
-  const loadSlideCanvas = () => {
+  // Update canvas when current slide changes
+  useEffect(() => {
     if (!fabricCanvasRef.current || !currentSlide) return;
-    
-    setIsMountingObject(true);
-    
+
+    // Load the current slide into the canvas
     loadSlideToCanvas(
       fabricCanvasRef.current,
       currentSlide,
       (overlay, textObject) => {
-        // Store the overlay ID in the fabric object for reference
+        // Store overlay ID on the fabric object for direct reference
         textObject.set('overlayId', overlay.id);
         
         textObject.setControlsVisibility({
@@ -100,10 +101,12 @@ const SlideCanvas: React.FC = () => {
       }
     );
     
-    setIsMountingObject(false);
-  };
+    // Clear selection when changing slides
+    setSelectedOverlay(null);
+    
+  }, [currentSlide?.id]);
 
-  // Event Handlers
+  // Direct fabric canvas event handlers
   const handleMouseDown = (e: fabric.IEvent) => {
     const activeObject = fabricCanvasRef.current?.getActiveObject();
     if (activeObject instanceof fabric.Textbox) {
@@ -121,22 +124,6 @@ const SlideCanvas: React.FC = () => {
     }
   };
 
-  const handleTextEditingEntered = () => {
-    setIsEditing(true);
-  };
-
-  const handleTextEditingExited = () => {
-    setIsEditing(false);
-    // Re-select the object after editing finishes
-    setTimeout(() => {
-      const activeObject = fabricCanvasRef.current?.getActiveObject();
-      if (activeObject) {
-        fabricCanvasRef.current?.setActiveObject(activeObject);
-        updateControlsPosition(activeObject);
-      }
-    }, 0);
-  };
-
   const updateControlsPosition = (object: fabric.Object) => {
     if (!canvasRef.current) return;
     
@@ -151,37 +138,27 @@ const SlideCanvas: React.FC = () => {
   };
 
   const handleObjectModified = (e: fabric.IEvent) => {
-    if (isMountingObject) return;
-    
     const modifiedObject = e.target;
     if (!modifiedObject || !currentSlide) return;
 
-    // Get the overlay ID from the fabric object
+    // Get overlay ID directly from the fabric object
     const overlayId = modifiedObject.get('overlayId');
     if (!overlayId) return;
 
     if (modifiedObject instanceof fabric.Textbox) {
       const { left, top, width, height, scaleX = 1, scaleY = 1, angle = 0 } = modifiedObject;
       
-      // Save complete object state to context
+      // Save all properties to context
       updateOverlay(currentSlide.id, overlayId, {
-        position: {
-          x: left ?? 0,
-          y: top ?? 0
-        },
         width: width ? width * scaleX : undefined,
         height: height ? height * scaleY : undefined,
         angle,
         scaleX,
         scaleY,
-        fontFamily: modifiedObject.fontFamily,
-        fontSize: modifiedObject.fontSize,
-        fontWeight: modifiedObject.fontWeight,
-        fontStyle: modifiedObject.fontStyle,
-        textAlign: modifiedObject.textAlign,
-        fill: modifiedObject.fill,
-        stroke: modifiedObject.stroke,
-        strokeWidth: modifiedObject.strokeWidth
+        position: {
+          x: left ?? 0,
+          y: top ?? 0
+        }
       });
       
       updateControlsPosition(modifiedObject);
@@ -194,22 +171,19 @@ const SlideCanvas: React.FC = () => {
     
     updateControlsPosition(movingObject);
     
-    // Get the overlay ID from the fabric object
+    // Get overlay ID directly from the fabric object
     const overlayId = movingObject.get('overlayId');
     if (!overlayId) return;
     
     if (movingObject instanceof fabric.Textbox) {
-      const { left, top, angle = 0, scaleX = 1, scaleY = 1 } = movingObject;
+      const { left, top } = movingObject;
       
-      // We need to persist position changes to the context
+      // Only update position during move for performance
       updateOverlay(currentSlide.id, overlayId, {
         position: {
           x: left ?? 0,
           y: top ?? 0
-        },
-        angle,
-        scaleX,
-        scaleY
+        }
       });
     }
   };
@@ -218,19 +192,14 @@ const SlideCanvas: React.FC = () => {
     const textObject = e.target;
     if (!textObject || !currentSlide) return;
 
-    // Get the overlay ID from the fabric object
+    // Get overlay ID directly from the fabric object
     const overlayId = textObject.get('overlayId');
     if (!overlayId) return;
 
     if (textObject instanceof fabric.Textbox) {
-      const { angle = 0, scaleX = 1, scaleY = 1 } = textObject;
-      
-      // Save the new text and preserve transformation properties
+      // Only update the text content
       updateOverlay(currentSlide.id, overlayId, {
-        text: textObject.text ?? '',
-        angle,
-        scaleX,
-        scaleY
+        text: textObject.text ?? ''
       });
       
       updateControlsPosition(textObject);
@@ -241,10 +210,11 @@ const SlideCanvas: React.FC = () => {
     const selected = e.selected?.[0];
     if (!selected || !currentSlide) return;
 
-    // Get the overlay ID directly from the fabric object
+    // Get overlay ID directly from the fabric object
     const overlayId = selected.get('overlayId');
     if (!overlayId) return;
     
+    // Find the overlay by ID
     const overlay = currentSlide.overlays.find(o => o.id === overlayId);
     if (overlay) {
       setSelectedOverlay(overlay);
@@ -257,6 +227,7 @@ const SlideCanvas: React.FC = () => {
     setIsEditing(false);
   };
 
+  // UI-initiated changes
   const handleStyleChange = (property: string, value: any) => {
     if (!currentSlide || !selectedOverlay || !fabricCanvasRef.current) return;
 
@@ -264,90 +235,88 @@ const SlideCanvas: React.FC = () => {
     const activeObject = canvas.getActiveObject();
     if (!activeObject || !(activeObject instanceof fabric.Textbox)) return;
 
-    // Store the current state and transformation values
-    const currentState = {
+    // Preserve current transformation state
+    const currentTransform = {
       left: activeObject.left,
       top: activeObject.top,
-      angle: activeObject.angle ?? 0,
-      scaleX: activeObject.scaleX ?? 1,
-      scaleY: activeObject.scaleY ?? 1,
+      angle: activeObject.angle,
+      scaleX: activeObject.scaleX,
+      scaleY: activeObject.scaleY,
       width: activeObject.width,
       height: activeObject.height
     };
 
-    // Set the new property value
-    let updatedValue;
-    
+    // Direct fabric.js modification first
     switch (property) {
       case 'fontFamily':
         activeObject.set('fontFamily', value);
-        updatedValue = value;
         break;
       case 'fontSize':
         const size = parseInt(value);
         activeObject.set('fontSize', size);
-        updatedValue = size;
         break;
       case 'fontWeight':
         const newWeight = activeObject.get('fontWeight') === 'bold' ? 'normal' : 'bold';
         activeObject.set('fontWeight', newWeight);
-        updatedValue = newWeight;
+        value = newWeight; // Store the actual value
         break;
       case 'fontStyle':
         const newStyle = activeObject.get('fontStyle') === 'italic' ? 'normal' : 'italic';
         activeObject.set('fontStyle', newStyle);
-        updatedValue = newStyle;
+        value = newStyle; // Store the actual value
         break;
       case 'textAlign':
         activeObject.set('textAlign', value);
-        updatedValue = value;
         break;
     }
 
-    // Restore position and transformation
+    // Preserve position and transformation
     activeObject.set({
-      left: currentState.left,
-      top: currentState.top,
-      angle: currentState.angle,
-      scaleX: currentState.scaleX,
-      scaleY: currentState.scaleY
+      left: currentTransform.left,
+      top: currentTransform.top,
+      angle: currentTransform.angle,
+      scaleX: currentTransform.scaleX,
+      scaleY: currentTransform.scaleY
     });
     
-    // Make sure object is properly positioned
+    // Update coordinates to ensure proper positioning
     activeObject.setCoords();
     
-    // Create a complete update to ensure all properties are saved
+    // Update React state with the style change
     const updates = {
-      [property]: updatedValue,
-      angle: currentState.angle,
-      scaleX: currentState.scaleX,
-      scaleY: currentState.scaleY,
-      width: currentState.width,
-      height: currentState.height,
+      [property]: value,
+      // Preserve position and transformation
       position: {
-        x: currentState.left ?? 0,
-        y: currentState.top ?? 0
-      }
+        x: currentTransform.left ?? 0,
+        y: currentTransform.top ?? 0
+      },
+      angle: currentTransform.angle ?? 0,
+      scaleX: currentTransform.scaleX ?? 1,
+      scaleY: currentTransform.scaleY ?? 1,
+      width: currentTransform.width,
+      height: currentTransform.height
     };
     
-    // Update the overlay data
+    // Update context
     updateOverlay(currentSlide.id, selectedOverlay.id, updates);
     
-    // After React state updates, ensure the object is still selected
-    setTimeout(() => {
-      // Ensure selection remains and canvas redraws
-      canvas.setActiveObject(activeObject);
-      canvas.requestRenderAll();
-      updateControlsPosition(activeObject);
-    }, 0);
+    // Ensure object remains selected
+    canvas.setActiveObject(activeObject);
+    canvas.requestRenderAll();
+    
+    // Update controls position
+    updateControlsPosition(activeObject);
   };
 
   const handleDelete = () => {
     if (!currentSlide || !selectedOverlay || !fabricCanvasRef.current) return;
     
+    // Direct fabric.js modification
     const activeObject = fabricCanvasRef.current.getActiveObject();
     if (activeObject) {
       fabricCanvasRef.current.remove(activeObject);
+      
+      // Then update React state
       deleteOverlay(currentSlide.id, selectedOverlay.id);
       setSelectedOverlay(null);
     }

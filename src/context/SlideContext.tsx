@@ -12,7 +12,7 @@ interface SlideContextType {
   updateSlideBackground: (slideId: string, background: SlideType['background']) => void;
   updateSlideAspectRatio: (slideId: string, aspectRatio: AspectRatioType) => void;
   addOverlay: (slideId: string, overlay: Omit<OverlayType, 'id'>) => void;
-  updateOverlay: (slideId: string, overlayId: string, data: Partial<OverlayType['data']>) => void;
+  updateOverlay: (slideId: string, overlayId: string, newData: Partial<OverlayType['data']>) => void;
   deleteOverlay: (slideId: string, overlayId: string) => void;
   getCurrentSlide: () => SlideType | undefined;
 }
