@@ -197,8 +197,9 @@ const SlideCanvas: React.FC = () => {
   const handleStyleChange = (property: string, value: any) => {
     if (!currentSlide || !selectedOverlay || !fabricCanvasRef.current) return;
 
-    const activeObject = fabricCanvasRef.current.getActiveObject();
-    if (!(activeObject instanceof fabric.Textbox)) return;
+    const canvas = fabricCanvasRef.current;
+    const activeObject = canvas.getActiveObject();
+    if (!activeObject || !(activeObject instanceof fabric.Textbox)) return;
 
     const updates: any = {
       ...selectedOverlay.data,
@@ -209,36 +210,42 @@ const SlideCanvas: React.FC = () => {
 
     switch (property) {
       case 'fontFamily':
-        activeObject.set({ fontFamily: value });
+        activeObject.set('fontFamily', value);
         updates.fontFamily = value;
         break;
       case 'fontSize':
         const size = parseInt(value);
-        activeObject.set({ fontSize: size });
+        activeObject.set('fontSize', size);
         updates.fontSize = size;
         break;
       case 'fontWeight':
         const newWeight = activeObject.get('fontWeight') === 'bold' ? 'normal' : 'bold';
-        activeObject.set({ fontWeight: newWeight });
+        activeObject.set('fontWeight', newWeight);
         updates.fontWeight = newWeight;
         break;
       case 'fontStyle':
         const newStyle = activeObject.get('fontStyle') === 'italic' ? 'normal' : 'italic';
-        activeObject.set({ fontStyle: newStyle });
+        activeObject.set('fontStyle', newStyle);
         updates.fontStyle = newStyle;
         break;
       case 'textAlign':
-        activeObject.set({ textAlign: value });
+        activeObject.set('textAlign', value);
         updates.textAlign = value;
         break;
     }
 
-    fabricCanvasRef.current.requestRenderAll();
-    updateOverlay(currentSlide.id, selectedOverlay.id, updates);
-    updateControlsPosition(activeObject);
+    // Ensure the object remains selected
+    activeObject.setCoords();
+    canvas.setActiveObject(activeObject);
     
-    // Re-select the object after style change
-    fabricCanvasRef.current.setActiveObject(activeObject);
+    // Update the canvas
+    canvas.requestRenderAll();
+    
+    // Update the overlay data
+    updateOverlay(currentSlide.id, selectedOverlay.id, updates);
+    
+    // Update controls position
+    updateControlsPosition(activeObject);
   };
 
   const handleDelete = () => {
