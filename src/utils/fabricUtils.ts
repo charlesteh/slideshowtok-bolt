@@ -12,7 +12,8 @@ export const initCanvas = (
     width: aspectRatioConfig.width,
     height: aspectRatioConfig.height,
     backgroundColor: '#ffffff',
-    preserveObjectStacking: true
+    preserveObjectStacking: true,
+    stopContextMenu: true
   });
 
   return canvas;
@@ -89,12 +90,12 @@ export const createTextObject = (
     borderColor: 'hsl(var(--primary))',
     cornerColor: 'hsl(var(--primary))',
     transparentCorners: false,
-    width: 200,
+    width: data.width || 200,
     angle: data.angle ?? 0,
     scaleX: data.scaleX ?? 1,
     scaleY: data.scaleY ?? 1
   });
-  
+
   return textObject;
 };
 
