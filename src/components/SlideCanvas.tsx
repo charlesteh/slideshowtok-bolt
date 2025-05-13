@@ -162,17 +162,28 @@ const SlideCanvas: React.FC = () => {
 
     if (modifiedObject instanceof fabric.Textbox) {
       const { left, top, width, height, scaleX = 1, scaleY = 1, angle = 0 } = modifiedObject;
+      
+      // Save complete object state to context
       updateOverlay(currentSlide.id, overlayId, {
         position: {
           x: left ?? 0,
           y: top ?? 0
         },
-        width: width! * scaleX,
-        height: height! * scaleY,
+        width: width ? width * scaleX : undefined,
+        height: height ? height * scaleY : undefined,
         angle,
         scaleX,
-        scaleY
+        scaleY,
+        fontFamily: modifiedObject.fontFamily,
+        fontSize: modifiedObject.fontSize,
+        fontWeight: modifiedObject.fontWeight,
+        fontStyle: modifiedObject.fontStyle,
+        textAlign: modifiedObject.textAlign,
+        fill: modifiedObject.fill,
+        stroke: modifiedObject.stroke,
+        strokeWidth: modifiedObject.strokeWidth
       });
+      
       updateControlsPosition(modifiedObject);
     }
   };
@@ -189,6 +200,8 @@ const SlideCanvas: React.FC = () => {
     
     if (movingObject instanceof fabric.Textbox) {
       const { left, top, angle = 0, scaleX = 1, scaleY = 1 } = movingObject;
+      
+      // We need to persist position changes to the context
       updateOverlay(currentSlide.id, overlayId, {
         position: {
           x: left ?? 0,
@@ -211,12 +224,15 @@ const SlideCanvas: React.FC = () => {
 
     if (textObject instanceof fabric.Textbox) {
       const { angle = 0, scaleX = 1, scaleY = 1 } = textObject;
+      
+      // Save the new text and preserve transformation properties
       updateOverlay(currentSlide.id, overlayId, {
         text: textObject.text ?? '',
         angle,
         scaleX,
         scaleY
       });
+      
       updateControlsPosition(textObject);
     }
   };
@@ -254,7 +270,9 @@ const SlideCanvas: React.FC = () => {
       top: activeObject.top,
       angle: activeObject.angle ?? 0,
       scaleX: activeObject.scaleX ?? 1,
-      scaleY: activeObject.scaleY ?? 1
+      scaleY: activeObject.scaleY ?? 1,
+      width: activeObject.width,
+      height: activeObject.height
     };
 
     // Set the new property value
@@ -298,12 +316,21 @@ const SlideCanvas: React.FC = () => {
     // Make sure object is properly positioned
     activeObject.setCoords();
     
-    // Update the overlay data with the new property
+    // Create a complete update to ensure all properties are saved
     const updates = {
-      [property]: updatedValue
+      [property]: updatedValue,
+      angle: currentState.angle,
+      scaleX: currentState.scaleX,
+      scaleY: currentState.scaleY,
+      width: currentState.width,
+      height: currentState.height,
+      position: {
+        x: currentState.left ?? 0,
+        y: currentState.top ?? 0
+      }
     };
     
-    // First update the context data
+    // Update the overlay data
     updateOverlay(currentSlide.id, selectedOverlay.id, updates);
     
     // After React state updates, ensure the object is still selected

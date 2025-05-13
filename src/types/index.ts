@@ -27,6 +27,12 @@ export interface OverlayType {
     angle?: number;
     scaleX?: number;
     scaleY?: number;
+    width?: number;
+    height?: number;
+    position?: {
+      x: number;
+      y: number;
+    };
   };
   position?: {
     x: number;

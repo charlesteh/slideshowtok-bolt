@@ -64,7 +64,9 @@ export const SlideProvider: React.FC<SlideProviderProps> = ({ children }) => {
       type: 'text',
       data: {
         text: DEFAULT_TEXT,
-        ...DEFAULT_TEXT_STYLE
+        ...DEFAULT_TEXT_STYLE,
+        width: 200,
+        height: 50
       },
       position: {
         x: width / 2,
@@ -122,17 +124,32 @@ export const SlideProvider: React.FC<SlideProviderProps> = ({ children }) => {
     ));
   };
 
-  const updateOverlay = (slideId: string, overlayId: string, data: Partial<OverlayType['data']>) => {
+  const updateOverlay = (slideId: string, overlayId: string, newData: Partial<OverlayType['data']>) => {
     setSlides(slides.map(slide => {
       if (slide.id !== slideId) return slide;
       
       return {
         ...slide,
-        overlays: slide.overlays.map(overlay => 
-          overlay.id === overlayId 
-            ? { ...overlay, data: { ...overlay.data, ...data } } 
-            : overlay
-        )
+        overlays: slide.overlays.map(overlay => {
+          if (overlay.id !== overlayId) return overlay;
+          
+          // Handle position separately if it exists in newData
+          const position = newData.position 
+            ? { ...overlay.position, ...newData.position } 
+            : overlay.position;
+          
+          // Remove position from newData to avoid duplication
+          const { position: _, ...restData } = newData;
+          
+          return {
+            ...overlay,
+            position,
+            data: {
+              ...overlay.data,
+              ...restData
+            }
+          };
+        })
       };
     }));
   };
