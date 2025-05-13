@@ -43,7 +43,9 @@ export const createTextConfig = (overlay: OverlayType) => {
     transformsEnabled: 'all',
     // Center the text around its position
     offsetX: width / 2,
-    offsetY: height / 2
+    offsetY: height / 2,
+    // Remove fixed line height
+    lineHeight: 1.2
   };
 };
 

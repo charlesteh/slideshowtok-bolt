@@ -10,10 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
 import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, Type, Trash2 } from 'lucide-react';
 import { FONT_FAMILIES, FONT_SIZES } from '../constants';
 import Konva from 'konva';
+import ColorPicker from './ColorPicker';
 
 const SlideCanvas: React.FC = () => {
   const { getCurrentSlide, updateOverlay, deleteOverlay } = useSlideContext();
@@ -26,6 +28,7 @@ const SlideCanvas: React.FC = () => {
   const [controlsPosition, setControlsPosition] = useState({ top: 0, left: 0 });
   const [isEditing, setIsEditing] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
+  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   
   const currentSlide = getCurrentSlide();
 
@@ -221,6 +224,7 @@ const SlideCanvas: React.FC = () => {
     textarea.style.fontFamily = textNode.fontFamily();
     textarea.style.textAlign = textNode.align();
     textarea.style.color = textNode.fill();
+    textarea.style.lineHeight = '1.2';
     
     textarea.focus();
     
@@ -326,6 +330,15 @@ const SlideCanvas: React.FC = () => {
             break;
           case 'textAlign':
             textNode.align(newValue);
+            break;
+          case 'fill':
+            textNode.fill(newValue);
+            break;
+          case 'stroke':
+            textNode.stroke(newValue);
+            break;
+          case 'strokeWidth':
+            textNode.strokeWidth(newValue);
             break;
         }
         
@@ -452,95 +465,131 @@ const SlideCanvas: React.FC = () => {
         {/* Text controls */}
         {selectedOverlay && selectedOverlay.type === 'text' && !isEditing && (
           <div 
-            className="fixed z-50 bg-background border rounded-lg shadow-lg p-2 flex gap-2 items-center"
+            className="fixed z-50 bg-background border rounded-lg shadow-lg p-2 flex flex-col gap-2"
             style={{
               top: controlsPosition.top,
               left: controlsPosition.left,
               transform: 'translateX(-50%)'
             }}
           >
-            <Select value={selectedOverlay.data.fontFamily} onValueChange={(value) => handleStyleChange('fontFamily', value)}>
-              <SelectTrigger className="w-[120px]">
-                <SelectValue>
-                  <span className="flex items-center gap-2">
-                    <Type className="h-4 w-4" />
-                    <span className="truncate">{selectedOverlay.data.fontFamily}</span>
-                  </span>
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {FONT_FAMILIES.map((font) => (
-                  <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                    {font}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2 items-center">
+              <Select value={selectedOverlay.data.fontFamily} onValueChange={(value) => handleStyleChange('fontFamily', value)}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue>
+                    <span className="flex items-center gap-2">
+                      <Type className="h-4 w-4" />
+                      <span className="truncate">{selectedOverlay.data.fontFamily}</span>
+                    </span>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {FONT_FAMILIES.map((font) => (
+                    <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                      {font}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Select 
-              value={selectedOverlay.data.fontSize.toString()} 
-              onValueChange={(value) => handleStyleChange('fontSize', value)}
-            >
-              <SelectTrigger className="w-[80px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {FONT_SIZES.map((size) => (
-                  <SelectItem key={size} value={size.toString()}>
-                    {size}px
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <div className="flex flex-col gap-1 w-[160px]">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-600">Size: {selectedOverlay.data.fontSize}px</span>
+                </div>
+                <Slider
+                  value={[selectedOverlay.data.fontSize]}
+                  min={8}
+                  max={120}
+                  step={1}
+                  onValueChange={(value) => handleStyleChange('fontSize', value[0].toString())}
+                  className="w-full"
+                />
+              </div>
 
-            <Toggle
-              pressed={selectedOverlay.data.fontWeight === 'bold'}
-              onPressedChange={() => handleStyleChange('fontWeight', null)}
-              size="sm"
-            >
-              <Bold className="h-4 w-4" />
-            </Toggle>
+              <ColorPicker 
+                color={selectedOverlay.data.fill}
+                onChange={(color) => handleStyleChange('fill', color)}
+                label="Color"
+              />
 
-            <Toggle
-              pressed={selectedOverlay.data.fontStyle === 'italic'}
-              onPressedChange={() => handleStyleChange('fontStyle', null)}
-              size="sm"
-            >
-              <Italic className="h-4 w-4" />
-            </Toggle>
-
-            <div className="flex gap-1">
               <Toggle
-                pressed={selectedOverlay.data.textAlign === 'left'}
-                onPressedChange={() => handleStyleChange('textAlign', 'left')}
+                pressed={selectedOverlay.data.fontWeight === 'bold'}
+                onPressedChange={() => handleStyleChange('fontWeight', null)}
                 size="sm"
               >
-                <AlignLeft className="h-4 w-4" />
+                <Bold className="h-4 w-4" />
               </Toggle>
+
               <Toggle
-                pressed={selectedOverlay.data.textAlign === 'center'}
-                onPressedChange={() => handleStyleChange('textAlign', 'center')}
+                pressed={selectedOverlay.data.fontStyle === 'italic'}
+                onPressedChange={() => handleStyleChange('fontStyle', null)}
                 size="sm"
               >
-                <AlignCenter className="h-4 w-4" />
+                <Italic className="h-4 w-4" />
               </Toggle>
+
+              <div className="flex gap-1">
+                <Toggle
+                  pressed={selectedOverlay.data.textAlign === 'left'}
+                  onPressedChange={() => handleStyleChange('textAlign', 'left')}
+                  size="sm"
+                >
+                  <AlignLeft className="h-4 w-4" />
+                </Toggle>
+                <Toggle
+                  pressed={selectedOverlay.data.textAlign === 'center'}
+                  onPressedChange={() => handleStyleChange('textAlign', 'center')}
+                  size="sm"
+                >
+                  <AlignCenter className="h-4 w-4" />
+                </Toggle>
+                <Toggle
+                  pressed={selectedOverlay.data.textAlign === 'right'}
+                  onPressedChange={() => handleStyleChange('textAlign', 'right')}
+                  size="sm"
+                >
+                  <AlignRight className="h-4 w-4" />
+                </Toggle>
+              </div>
+
               <Toggle
-                pressed={selectedOverlay.data.textAlign === 'right'}
-                onPressedChange={() => handleStyleChange('textAlign', 'right')}
+                pressed={false}
+                onPressedChange={handleDelete}
                 size="sm"
+                className="text-red-500 hover:text-red-600"
               >
-                <AlignRight className="h-4 w-4" />
+                <Trash2 className="h-4 w-4" />
               </Toggle>
+
+              <button 
+                onClick={() => setShowAdvancedControls(!showAdvancedControls)}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                {showAdvancedControls ? "Hide Advanced" : "Advanced"}
+              </button>
             </div>
 
-            <Toggle
-              pressed={false}
-              onPressedChange={handleDelete}
-              size="sm"
-              className="text-red-500 hover:text-red-600"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Toggle>
+            {showAdvancedControls && (
+              <div className="flex items-center gap-3 pt-1 border-t">
+                <div className="flex flex-col gap-1 w-[100px]">
+                  <span className="text-xs text-gray-600">Outline Width: {selectedOverlay.data.strokeWidth}px</span>
+                  <Slider
+                    value={[selectedOverlay.data.strokeWidth]}
+                    min={0}
+                    max={20}
+                    step={0.5}
+                    onValueChange={(value) => handleStyleChange('strokeWidth', value[0])}
+                    className="w-full"
+                  />
+                </div>
+                
+                <ColorPicker 
+                  color={selectedOverlay.data.stroke}
+                  onChange={(color) => handleStyleChange('stroke', color)}
+                  label="Outline"
+                  className="ml-2"
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
