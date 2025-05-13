@@ -200,11 +200,11 @@ const SlideCanvas: React.FC = () => {
     const activeObject = fabricCanvasRef.current.getActiveObject();
     if (!(activeObject instanceof fabric.Textbox)) return;
 
-    const { angle = 0, scaleX = 1, scaleY = 1 } = activeObject;
     const updates: any = {
-      angle,
-      scaleX,
-      scaleY
+      ...selectedOverlay.data,
+      angle: activeObject.angle || 0,
+      scaleX: activeObject.scaleX || 1,
+      scaleY: activeObject.scaleY || 1
     };
 
     switch (property) {
