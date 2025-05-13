@@ -24,6 +24,9 @@ export interface OverlayType {
     fill: string;
     stroke: string;
     strokeWidth: number;
+    angle?: number;
+    scaleX?: number;
+    scaleY?: number;
   };
   position?: {
     x: number;

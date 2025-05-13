@@ -89,7 +89,10 @@ export const createTextObject = (
     borderColor: 'hsl(var(--primary))',
     cornerColor: 'hsl(var(--primary))',
     transparentCorners: false,
-    width: 200
+    width: 200,
+    angle: data.angle ?? 0,
+    scaleX: data.scaleX ?? 1,
+    scaleY: data.scaleY ?? 1
   });
   
   return textObject;

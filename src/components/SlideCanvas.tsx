@@ -105,14 +105,17 @@ const SlideCanvas: React.FC = () => {
     if (!modifiedObject || !currentSlide || !selectedOverlay) return;
 
     if (modifiedObject instanceof fabric.Textbox) {
-      const { left, top, width, height, scaleX = 1, scaleY = 1 } = modifiedObject;
+      const { left, top, width, height, scaleX = 1, scaleY = 1, angle = 0 } = modifiedObject;
       updateOverlay(currentSlide.id, selectedOverlay.id, {
         position: {
           x: left ?? 0,
           y: top ?? 0
         },
         width: width! * scaleX,
-        height: height! * scaleY
+        height: height! * scaleY,
+        angle: angle,
+        scaleX,
+        scaleY
       });
       updateControlsPosition(modifiedObject);
     }
@@ -125,11 +128,15 @@ const SlideCanvas: React.FC = () => {
     updateControlsPosition(movingObject);
     
     if (movingObject instanceof fabric.Textbox) {
+      const { left, top, angle = 0, scaleX = 1, scaleY = 1 } = movingObject;
       updateOverlay(currentSlide.id, selectedOverlay.id, {
         position: {
-          x: movingObject.left ?? 0,
-          y: movingObject.top ?? 0
-        }
+          x: left ?? 0,
+          y: top ?? 0
+        },
+        angle,
+        scaleX,
+        scaleY
       });
     }
   };
@@ -139,8 +146,12 @@ const SlideCanvas: React.FC = () => {
     if (!textObject || !currentSlide || !selectedOverlay) return;
 
     if (textObject instanceof fabric.Textbox) {
+      const { angle = 0, scaleX = 1, scaleY = 1 } = textObject;
       updateOverlay(currentSlide.id, selectedOverlay.id, {
-        text: textObject.text ?? ''
+        text: textObject.text ?? '',
+        angle,
+        scaleX,
+        scaleY
       });
       updateControlsPosition(textObject);
     }
@@ -177,7 +188,12 @@ const SlideCanvas: React.FC = () => {
     const activeObject = fabricCanvasRef.current.getActiveObject();
     if (!(activeObject instanceof fabric.Textbox)) return;
 
-    const updates: any = {};
+    const { angle = 0, scaleX = 1, scaleY = 1 } = activeObject;
+    const updates: any = {
+      angle,
+      scaleX,
+      scaleY
+    };
 
     switch (property) {
       case 'fontFamily':
