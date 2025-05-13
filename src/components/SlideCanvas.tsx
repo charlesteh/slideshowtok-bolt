@@ -125,7 +125,7 @@ const SlideCanvas: React.FC = () => {
         },
         width: width! * scaleX,
         height: height! * scaleY,
-        angle: angle,
+        angle,
         scaleX,
         scaleY
       });
