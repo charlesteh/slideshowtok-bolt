@@ -39,8 +39,8 @@ const SlideControls: React.FC = () => {
     addOverlay(currentSlide.id, {
       type: 'text',
       data: {
-        text: 'New Text',
-        fontFamily: 'Arial',
+        text: 'Click to edit text here',
+        fontFamily: 'Montserrat',
         fontSize: 36,
         fontWeight: 'normal',
         fontStyle: 'normal',

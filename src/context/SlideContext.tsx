@@ -59,13 +59,15 @@ export const SlideProvider: React.FC<SlideProviderProps> = ({ children }) => {
   };
 
   const createDefaultTextOverlay = (width: number, height: number): OverlayType => {
+    const textWidth = width * 0.8; // 80% of slide width for better text wrapping
+    
     return {
       id: uuidv4(),
       type: 'text',
       data: {
-        text: DEFAULT_TEXT,
+        text: 'Click to edit text here',
         ...DEFAULT_TEXT_STYLE,
-        width: 200,
+        width: textWidth,
         height: 50
       },
       position: {

@@ -165,14 +165,20 @@ const SlideCanvas: React.FC = () => {
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
     const rotation = node.rotation();
+    const width = node.width() * scaleX;
+    
+    // Reset scale to 1 but preserve the actual dimensions
+    node.scaleX(1);
+    node.scaleY(1);
+    node.width(width);
     
     // Update state with new transformation data
     updateOverlay(currentSlide.id, id, {
       angle: rotation,
-      scaleX: scaleX,
-      scaleY: scaleY,
-      width: node.width() * scaleX,
-      height: node.height() * scaleY,
+      scaleX: 1, // Reset scale to 1
+      scaleY: 1, // Reset scale to 1
+      width: width,
+      height: node.height(),
       position: {
         x: node.x(),
         y: node.y()
@@ -181,6 +187,11 @@ const SlideCanvas: React.FC = () => {
 
     // Update control position
     updateControlsPosition(node);
+    
+    // Make sure to redraw the layer
+    if (layerRef.current) {
+      layerRef.current.batchDraw();
+    }
   };
 
   const cleanupTextarea = () => {
@@ -246,16 +257,16 @@ const SlideCanvas: React.FC = () => {
     textarea.style.position = 'absolute';
     textarea.style.top = `${areaPosition.y}px`;
     textarea.style.left = `${areaPosition.x}px`;
-    textarea.style.width = `${textNode.width() * textNode.scaleX()}px`;
-    textarea.style.height = `${textNode.height() * textNode.scaleY()}px`;
-    textarea.style.fontSize = `${textNode.fontSize() * textNode.scaleY()}px`;
+    textarea.style.width = `${textNode.width()}px`;
+    textarea.style.height = `${Math.max(textNode.height(), 100)}px`;
+    textarea.style.fontSize = `${textNode.fontSize()}px`;
     textarea.style.border = '2px solid #3b82f6';
     textarea.style.padding = '5px';
-    textarea.style.overflow = 'hidden';
+    textarea.style.overflow = 'auto';
     textarea.style.background = 'black';
     textarea.style.color = 'white';
     textarea.style.outline = 'none';
-    textarea.style.resize = 'none';
+    textarea.style.resize = 'both';
     textarea.style.fontFamily = textNode.fontFamily();
     textarea.style.textAlign = textNode.align();
     textarea.style.lineHeight = '1.2';
@@ -319,6 +330,18 @@ const SlideCanvas: React.FC = () => {
       if (layerRef.current) {
         layerRef.current.batchDraw();
       }
+    });
+    
+    // Handle resize of textarea
+    textarea.addEventListener('mouseup', function() {
+      // Update text node width based on textarea size
+      const newWidth = textarea.clientWidth;
+      textNode.width(newWidth);
+      
+      // Update state
+      updateOverlay(currentSlide.id, id, {
+        width: newWidth
+      });
     });
     
     setTimeout(() => {
@@ -403,6 +426,9 @@ const SlideCanvas: React.FC = () => {
             break;
           case 'strokeWidth':
             textNode.strokeWidth(newValue);
+            break;
+          case 'width':
+            textNode.width(newValue);
             break;
         }
         
@@ -545,7 +571,15 @@ const SlideCanvas: React.FC = () => {
                 ref={controlsTextAreaRef}
                 value={selectedOverlay.data.text}
                 onChange={handleControlsTextChange}
-                className="w-full p-2 border rounded-md resize-none text-primary"
+                className="w-full p-2 border rounded-md resize-none h-20 bg-black text-white"
+                style={{
+                  fontFamily: selectedOverlay.data.fontFamily,
+                  fontSize: `${Math.min(selectedOverlay.data.fontSize, 24)}px`,
+                  fontWeight: selectedOverlay.data.fontWeight,
+                  fontStyle: selectedOverlay.data.fontStyle,
+                  textAlign: selectedOverlay.data.textAlign as any,
+                  lineHeight: '1.2'
+                }}
               />
             </div>
             
@@ -592,6 +626,21 @@ const SlideCanvas: React.FC = () => {
                 max={120}
                 step={1}
                 onValueChange={(value) => handleStyleChange('fontSize', value[0].toString())}
+                className="w-full"
+              />
+            </div>
+            
+            {/* Width Control Slider */}
+            <div className="mb-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-600">Width: {Math.round(selectedOverlay.data.width || 200)}px</span>
+              </div>
+              <Slider
+                value={[selectedOverlay.data.width || 200]}
+                min={50}
+                max={width - 20}  // Almost full slide width
+                step={10}
+                onValueChange={(value) => handleStyleChange('width', value[0])}
                 className="w-full"
               />
             </div>

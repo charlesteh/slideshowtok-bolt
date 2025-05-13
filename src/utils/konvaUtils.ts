@@ -14,7 +14,7 @@ export const createTextConfig = (overlay: OverlayType) => {
   
   // Ensure we have valid values for all properties
   const fontSize = data.fontSize || 36;
-  const width = data.width || 200;
+  const width = data.width || 300; // Default to a wider text box
   const height = data.height || 50;
   const scaleX = data.scaleX || 1;
   const scaleY = data.scaleY || 1;
@@ -47,6 +47,7 @@ export const createTextConfig = (overlay: OverlayType) => {
     // Enable text wrapping
     wrap: 'word',
     lineHeight: 1.2,
+    ellipsis: false, // Don't truncate with ellipsis
   };
 };
 
