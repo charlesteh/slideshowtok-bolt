@@ -21,7 +21,7 @@ export const generateSlideThumbnail = async (
     
     // Set background
     if (slide.background.type === 'image') {
-      const img = new Image();
+      const img = new window.Image();
       img.crossOrigin = 'anonymous';
       
       img.onload = () => {
@@ -122,7 +122,7 @@ export const exportAllSlides = async (
     // Create a promise to handle async background loading
     const slideExport = new Promise<Blob>((resolve) => {
       if (slide.background.type === 'image') {
-        const img = new Image();
+        const img = new window.Image();
         img.crossOrigin = 'anonymous';
         
         img.onload = () => {

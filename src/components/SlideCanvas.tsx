@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Stage, Layer, Text, Image, Group, Transformer } from 'react-konva';
+import { Stage, Layer, Text, Image as KonvaImage, Group, Transformer } from 'react-konva';
 import { useSlideContext } from '../context/SlideContext';
 import { OverlayType } from '../types';
 import { getCanvasSize, createTextConfig } from '../utils/konvaUtils';
@@ -35,7 +35,7 @@ const SlideCanvas: React.FC = () => {
       return;
     }
 
-    const img = new Image();
+    const img = new window.Image();
     img.crossOrigin = 'anonymous';
     img.src = currentSlide.background.value;
     img.onload = () => {
@@ -340,7 +340,7 @@ const SlideCanvas: React.FC = () => {
                 fill={currentSlide.background.value}
               />
             ) : backgroundImage && (
-              <Image
+              <KonvaImage
                 image={backgroundImage}
                 width={width}
                 height={height}

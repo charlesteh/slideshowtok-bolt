@@ -49,7 +49,7 @@ export const convertToBase64 = (file: File): Promise<string> => {
 };
 
 export const loadImageFromUrl = async (url: string): Promise<string> => {
-  const img = new Image();
+  const img = new window.Image();
   img.crossOrigin = 'anonymous';
   
   return new Promise((resolve, reject) => {
