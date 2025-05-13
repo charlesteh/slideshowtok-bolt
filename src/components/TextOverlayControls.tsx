@@ -33,10 +33,11 @@ const TextOverlayControls: React.FC<TextOverlayControlsProps> = ({
   const handleStyleChange = (property: string, value: any) => {
     if (!currentSlide) return;
 
+    // Preserve existing transformation properties
     const updates: Partial<OverlayType['data']> = {
-      angle: overlay.data.angle,
-      scaleX: overlay.data.scaleX,
-      scaleY: overlay.data.scaleY
+      angle: overlay.data.angle ?? 0,
+      scaleX: overlay.data.scaleX ?? 1,
+      scaleY: overlay.data.scaleY ?? 1
     };
 
     switch (property) {
@@ -57,7 +58,11 @@ const TextOverlayControls: React.FC<TextOverlayControlsProps> = ({
         break;
     }
 
-    updateOverlay(currentSlide.id, overlay.id, updates);
+    // Preserve existing text and style properties
+    updateOverlay(currentSlide.id, overlay.id, {
+      ...overlay.data,
+      ...updates
+    });
   };
   
   return (
