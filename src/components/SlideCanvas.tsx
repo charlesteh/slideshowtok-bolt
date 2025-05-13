@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { fabric } from 'fabric';
 import { useSlideContext } from '../context/SlideContext';
 import { OverlayType } from '../types';
-import { initCanvas, loadSlideToCanvas } from '../utils/fabricUtils';
 import {
   Select,
   SelectContent,
@@ -13,276 +12,33 @@ import {
 import { Toggle } from "@/components/ui/toggle";
 import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, Type, Trash2 } from 'lucide-react';
 import { FONT_FAMILIES, FONT_SIZES } from '../constants';
+import { useFabricCanvas } from '../hooks/useFabricCanvas';
 
 const SlideCanvas: React.FC = () => {
   const { getCurrentSlide, updateOverlay, deleteOverlay } = useSlideContext();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
-  const [selectedOverlay, setSelectedOverlay] = useState<OverlayType | null>(null);
-  const [controlsPosition, setControlsPosition] = useState({ top: 0, left: 0 });
-  const [isEditing, setIsEditing] = useState(false);
-  
   const currentSlide = getCurrentSlide();
+  
+  const {
+    canvasRef,
+    selectedOverlay,
+    isEditing,
+    controlsPosition,
+    handleStyleChange,
+    handleDelete,
+    setOnUpdateOverlay,
+    setOnDeleteOverlay
+  } = useFabricCanvas(currentSlide);
 
+  // Pass context callbacks to the hook
   useEffect(() => {
-    if (!canvasRef.current || !currentSlide) return;
-
-    if (!fabricCanvasRef.current) {
-      fabricCanvasRef.current = initCanvas(canvasRef.current, currentSlide);
-      
-      fabricCanvasRef.current.on('mouse:down', handleMouseDown);
-      fabricCanvasRef.current.on('mouse:up', handleMouseUp);
-      fabricCanvasRef.current.on('object:modified', handleObjectModified);
-      fabricCanvasRef.current.on('selection:created', handleSelectionCreated);
-      fabricCanvasRef.current.on('selection:cleared', handleSelectionCleared);
-      fabricCanvasRef.current.on('text:changed', handleTextChanged);
-      fabricCanvasRef.current.on('object:moving', handleObjectMoving);
-      fabricCanvasRef.current.on('text:editing:entered', () => setIsEditing(true));
-      fabricCanvasRef.current.on('text:editing:exited', () => {
-        setIsEditing(false);
-        // Re-select the object after editing
-        const activeObject = fabricCanvasRef.current?.getActiveObject();
-        if (activeObject) {
-          fabricCanvasRef.current?.setActiveObject(activeObject);
-          updateControlsPosition(activeObject);
-        }
-      });
-    }
-
-    loadSlideToCanvas(
-      fabricCanvasRef.current,
-      currentSlide,
-      (overlay, textObject) => {
-        textObject.setControlsVisibility({
-          mt: false,
-          mb: false,
-          ml: true,
-          mr: true,
-          tl: true,
-          tr: true,
-          bl: true,
-          br: true,
-          mtr: true,
-        });
-      }
-    );
-
-    return () => {
-      if (fabricCanvasRef.current) {
-        fabricCanvasRef.current.off('mouse:down', handleMouseDown);
-        fabricCanvasRef.current.off('mouse:up', handleMouseUp);
-        fabricCanvasRef.current.off('object:modified', handleObjectModified);
-        fabricCanvasRef.current.off('selection:created', handleSelectionCreated);
-        fabricCanvasRef.current.off('selection:cleared', handleSelectionCleared);
-        fabricCanvasRef.current.off('text:changed', handleTextChanged);
-        fabricCanvasRef.current.off('object:moving', handleObjectMoving);
-        fabricCanvasRef.current.off('text:editing:entered');
-        fabricCanvasRef.current.off('text:editing:exited');
-      }
-    };
-  }, [currentSlide]);
-
-  const handleMouseDown = (e: fabric.IEvent) => {
-    const activeObject = fabricCanvasRef.current?.getActiveObject();
-    if (activeObject instanceof fabric.Textbox) {
-      if (e.e && (e.e as MouseEvent).detail === 2) {
-        activeObject.enterEditing();
-        setIsEditing(true);
-      }
-    }
-  };
-
-  const handleMouseUp = () => {
-    const activeObject = fabricCanvasRef.current?.getActiveObject();
-    if (activeObject instanceof fabric.Textbox && !activeObject.isEditing) {
-      setIsEditing(false);
-    }
-  };
-
-  const updateControlsPosition = (object: fabric.Object) => {
-    if (!canvasRef.current) return;
-    
-    const zoom = fabricCanvasRef.current?.getZoom() || 1;
-    const rect = object.getBoundingRect();
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    
-    setControlsPosition({
-      top: canvasRect.top + (rect.top + rect.height) * zoom + 10,
-      left: canvasRect.left + rect.left * zoom + (rect.width * zoom) / 2
-    });
-  };
-
-  const handleObjectModified = (e: fabric.IEvent) => {
-    const modifiedObject = e.target;
-    if (!modifiedObject || !currentSlide || !selectedOverlay) return;
-
-    if (modifiedObject instanceof fabric.Textbox) {
-      const { left, top, width, height, scaleX = 1, scaleY = 1, angle = 0 } = modifiedObject;
-      updateOverlay(currentSlide.id, selectedOverlay.id, {
-        position: {
-          x: left ?? 0,
-          y: top ?? 0
-        },
-        width: width! * scaleX,
-        height: height! * scaleY,
-        angle,
-        scaleX,
-        scaleY
-      });
-      updateControlsPosition(modifiedObject);
-    }
-  };
-
-  const handleObjectMoving = (e: fabric.IEvent) => {
-    const movingObject = e.target;
-    if (!movingObject || !currentSlide || !selectedOverlay) return;
-    
-    updateControlsPosition(movingObject);
-    
-    if (movingObject instanceof fabric.Textbox) {
-      const { left, top, angle = 0, scaleX = 1, scaleY = 1 } = movingObject;
-      updateOverlay(currentSlide.id, selectedOverlay.id, {
-        position: {
-          x: left ?? 0,
-          y: top ?? 0
-        },
-        angle,
-        scaleX,
-        scaleY
-      });
-    }
-  };
-
-  const handleTextChanged = (e: fabric.IEvent) => {
-    const textObject = e.target;
-    if (!textObject || !currentSlide || !selectedOverlay) return;
-
-    if (textObject instanceof fabric.Textbox) {
-      const { angle = 0, scaleX = 1, scaleY = 1 } = textObject;
-      updateOverlay(currentSlide.id, selectedOverlay.id, {
-        text: textObject.text ?? '',
-        angle,
-        scaleX,
-        scaleY
-      });
-      updateControlsPosition(textObject);
-    }
-  };
-
-  const handleSelectionCreated = (e: fabric.IEvent) => {
-    const selected = e.selected?.[0];
-    if (!selected || !currentSlide) return;
-
-    currentSlide.overlays.forEach(overlay => {
-      if (overlay.type === 'text') {
-        const textObject = fabricCanvasRef.current?.getObjects().find(
-          obj => obj instanceof fabric.Textbox && 
-          obj.left === overlay.position?.x && 
-          obj.top === overlay.position?.y
-        );
-        
-        if (textObject === selected) {
-          setSelectedOverlay(overlay);
-          updateControlsPosition(selected);
-        }
-      }
-    });
-  };
-
-  const handleSelectionCleared = () => {
-    setSelectedOverlay(null);
-    setIsEditing(false);
-  };
-
-  const handleStyleChange = (property: string, value: any) => {
-    if (!currentSlide || !selectedOverlay || !fabricCanvasRef.current) return;
-
-    const canvas = fabricCanvasRef.current;
-    const activeObject = canvas.getActiveObject();
-    if (!activeObject || !(activeObject instanceof fabric.Textbox)) return;
-
-    // Store current state before making changes
-    const currentProps = {
-      left: activeObject.left,
-      top: activeObject.top,
-      width: activeObject.width,
-      height: activeObject.height,
-      angle: activeObject.angle || 0,
-      scaleX: activeObject.scaleX || 1,
-      scaleY: activeObject.scaleY || 1,
-      fontFamily: activeObject.fontFamily,
-      fontSize: activeObject.fontSize,
-      fontWeight: activeObject.fontWeight,
-      fontStyle: activeObject.fontStyle,
-      textAlign: activeObject.textAlign
-    };
-
-    // Apply the style change directly to the fabric object
-    switch (property) {
-      case 'fontFamily':
-        activeObject.set('fontFamily', value);
-        break;
-      case 'fontSize':
-        activeObject.set('fontSize', parseInt(value));
-        break;
-      case 'fontWeight':
-        const newWeight = activeObject.get('fontWeight') === 'bold' ? 'normal' : 'bold';
-        activeObject.set('fontWeight', newWeight);
-        value = newWeight; // Set value to the actual new state
-        break;
-      case 'fontStyle':
-        const newStyle = activeObject.get('fontStyle') === 'italic' ? 'normal' : 'italic';
-        activeObject.set('fontStyle', newStyle);
-        value = newStyle; // Set value to the actual new state
-        break;
-      case 'textAlign':
-        activeObject.set('textAlign', value);
-        break;
-    }
-
-    // Calculate the changes that need to be made to the overlay data
-    const updatedData = {
-      ...selectedOverlay.data
-    };
-    
-    // Only update the specific property that changed
-    updatedData[property] = value;
-    
-    // Preserve position and transformation
-    activeObject.set({
-      left: currentProps.left,
-      top: currentProps.top,
-      angle: currentProps.angle,
-      scaleX: currentProps.scaleX,
-      scaleY: currentProps.scaleY
+    setOnUpdateOverlay((slideId, overlayId, data) => {
+      updateOverlay(slideId, overlayId, data);
     });
     
-    // Make sure the object is rendered correctly with the new style
-    activeObject.setCoords();
-    
-    // Keep the object selected
-    canvas.setActiveObject(activeObject);
-    
-    // Update state but minimize re-renders
-    updateOverlay(currentSlide.id, selectedOverlay.id, updatedData);
-    
-    // Request a render but only for this object
-    canvas.requestRenderAll();
-    
-    // Make sure the controls stay in the right position
-    updateControlsPosition(activeObject);
-  };
-
-  const handleDelete = () => {
-    if (!currentSlide || !selectedOverlay || !fabricCanvasRef.current) return;
-    
-    const activeObject = fabricCanvasRef.current.getActiveObject();
-    if (activeObject) {
-      fabricCanvasRef.current.remove(activeObject);
-      deleteOverlay(currentSlide.id, selectedOverlay.id);
-      setSelectedOverlay(null);
-    }
-  };
+    setOnDeleteOverlay((slideId, overlayId) => {
+      deleteOverlay(slideId, overlayId);
+    });
+  }, [updateOverlay, deleteOverlay]);
 
   return (
     <div className="relative flex justify-center items-center w-full max-h-[70vh] overflow-hidden">
