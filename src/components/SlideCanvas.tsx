@@ -546,15 +546,6 @@ const SlideCanvas: React.FC = () => {
                 value={selectedOverlay.data.text}
                 onChange={handleControlsTextChange}
                 className="w-full p-2 border rounded-md resize-none text-primary"
-                style={{
-                  fontFamily: selectedOverlay.data.fontFamily,
-                  fontSize: `${Math.min(selectedOverlay.data.fontSize, 24)}px`,
-                  fontWeight: selectedOverlay.data.fontWeight,
-                  fontStyle: selectedOverlay.data.fontStyle,
-                  textAlign: selectedOverlay.data.textAlign as any,
-                  lineHeight: '1.2',
-                  minHeight: '60px'
-                }}
               />
             </div>
             
