@@ -116,11 +116,12 @@ const SlideCanvas: React.FC = () => {
       
       // Get absolute position on the page
       const stageBox = stage.container().getBoundingClientRect();
-      const box = node.getClientRect();
+      const nodeBox = node.getClientRect();
       
+      // Position the button directly below the center of the text
       setControlsPosition({
-        top: stageBox.top + box.y + box.height + 10,
-        left: stageBox.left + box.x + box.width / 2
+        top: stageBox.top + nodeBox.y + nodeBox.height + 10, // Position below the text
+        left: stageBox.left + nodeBox.x + nodeBox.width / 2, // Center horizontally
       });
     } catch (error) {
       console.error("Error updating controls position:", error);
@@ -167,6 +168,11 @@ const SlideCanvas: React.FC = () => {
     
     // Update control position
     updateControlsPosition(node);
+  };
+
+  const handleDragMove = (e: Konva.KonvaEventObject<DragEvent>) => {
+    // Update the controls position during drag
+    updateControlsPosition(e.target);
   };
 
   const handleTransformEnd = (e: Konva.KonvaEventObject<Event>, id: string) => {
@@ -552,6 +558,7 @@ const SlideCanvas: React.FC = () => {
                     onClick={() => handleSelect(overlay.id)}
                     onDblClick={(e) => handleTextDblClick(e, overlay.id)}
                     onDragEnd={(e) => handleDragEnd(e, overlay.id)}
+                    onDragMove={handleDragMove}
                     onTransformEnd={(e) => handleTransformEnd(e, overlay.id)}
                     wrap="word"
                     ellipsis={false}
@@ -589,17 +596,22 @@ const SlideCanvas: React.FC = () => {
         
         {/* Edit Button - Appears when text is selected */}
         {selectedOverlay && selectedOverlay.type === 'text' && !isEditing && (
-          <button
-            className="absolute transform translate-x(-50%) bg-white shadow-md rounded-full p-2 border border-gray-300 z-10 hover:bg-gray-50"
+          <div 
+            className="absolute z-10"
             style={{
-              left: `${controlsPosition.left}px`, 
+              left: `${controlsPosition.left}px`,
               top: `${controlsPosition.top}px`,
-              transform: 'translateX(-50%)'
+              transform: 'translate(-50%, 0)'
             }}
-            onClick={() => setShowControls(!showControls)}
           >
-            <Settings size={20} className="text-gray-700" />
-          </button>
+            <button
+              className="bg-white shadow-md rounded-full p-2 border border-gray-300 hover:bg-gray-50"
+              onClick={() => setShowControls(!showControls)}
+              title={showControls ? "Hide text controls" : "Edit text properties"}
+            >
+              <Settings size={20} className="text-gray-700" />
+            </button>
+          </div>
         )}
         
         {/* Text Controls Panel */}
