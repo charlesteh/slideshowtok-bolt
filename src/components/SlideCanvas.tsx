@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Stage, Layer, Text, Image as KonvaImage, Transformer } from 'react-konva';
 import { useSlideContext } from '../context/SlideContext';
-import { OverlayType } from '../types';
 import { getCanvasSize, createTextConfig } from '../utils/konvaUtils';
 import {
   Select,
@@ -12,8 +11,8 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
-import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, Type, Trash2, Settings, Minus, Plus } from 'lucide-react';
-import { FONT_FAMILIES, FONT_SIZES } from '../constants';
+import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, Type, Trash2, Settings, Minus, Plus, TextCursor } from 'lucide-react';
+import { FONT_FAMILIES } from '../constants';
 import Konva from 'konva';
 import ColorPicker from './ColorPicker';
 
@@ -27,7 +26,6 @@ const SlideCanvas: React.FC = () => {
   const textEditingId = useRef<string | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [controlsPosition, setControlsPosition] = useState({ top: 0, left: 0 });
   const [isEditing, setIsEditing] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
@@ -86,8 +84,7 @@ const SlideCanvas: React.FC = () => {
           transformer.nodes([selectedNode]);
           transformer.getLayer()?.batchDraw();
           
-          // Update controls position
-          updateControlsPosition(selectedNode);
+          // No longer need to update controls position
         } else {
           // Node no longer in layer, clear selection
           transformer.nodes([]);
@@ -108,25 +105,7 @@ const SlideCanvas: React.FC = () => {
     }
   }, [selectedId]);
 
-  const updateControlsPosition = (node: Konva.Node) => {
-    if (!stageRef.current || !node) return;
-    
-    try {
-      const stage = stageRef.current;
-      
-      // Get absolute position on the page
-      const stageBox = stage.container().getBoundingClientRect();
-      const nodeBox = node.getClientRect();
-      
-      // Position the button directly below the center of the text
-      setControlsPosition({
-        top: stageBox.top + nodeBox.y + nodeBox.height + 2, // Position directly below the text
-        left: stageBox.left + nodeBox.x + nodeBox.width / 2, // Center horizontally
-      });
-    } catch (error) {
-      console.error("Error updating controls position:", error);
-    }
-  };
+  // Removed updateControlsPosition function as it's no longer needed
 
   const handleSelect = (id: string) => {
     // Clean up textarea if one is open
@@ -166,13 +145,11 @@ const SlideCanvas: React.FC = () => {
       }
     });
     
-    // Update control position
-    updateControlsPosition(node);
+    // Control position updates no longer needed
   };
 
-  const handleDragMove = (e: Konva.KonvaEventObject<DragEvent>) => {
-    // Update the controls position during drag
-    updateControlsPosition(e.target);
+  const handleDragMove = () => {
+    // No longer need to update control positions during drag
   };
 
   const handleTransformEnd = (e: Konva.KonvaEventObject<Event>, id: string) => {
@@ -206,8 +183,7 @@ const SlideCanvas: React.FC = () => {
       }
     });
 
-    // Update control position
-    updateControlsPosition(node);
+    // No longer need to update control position
     
     // Force redraw
     layerRef.current?.batchDraw();
@@ -292,7 +268,7 @@ const SlideCanvas: React.FC = () => {
     textarea.style.fontSize = `${textNode.fontSize()}px`;
     textarea.style.lineHeight = '1.2';
     textarea.style.fontFamily = textNode.fontFamily();
-    textarea.style.color = textNode.fill();
+    textarea.style.color = typeof textNode.fill() === 'string' ? textNode.fill() as string : '#000000';
     textarea.style.border = '1px solid #000';
     textarea.style.padding = '5px';
     textarea.style.borderRadius = '3px';
@@ -354,9 +330,11 @@ const SlideCanvas: React.FC = () => {
       textNode.text(textareaRef.current.value);
       
       // Update state
-      updateOverlay(currentSlide.id, id, {
-        text: textareaRef.current.value
-      });
+      if (currentSlide) {
+        updateOverlay(currentSlide.id, id, {
+          text: textareaRef.current.value
+        });
+      }
       
       // Clean up
       cleanupTextarea();
@@ -407,7 +385,7 @@ const SlideCanvas: React.FC = () => {
     });
   };
 
-  const handleStyleChange = (property: string, value: any) => {
+  const handleStyleChange = (property: string, value: unknown) => {
     if (!currentSlide || !selectedId) return;
     
     const overlay = currentSlide.overlays.find(o => o.id === selectedId);
@@ -433,40 +411,53 @@ const SlideCanvas: React.FC = () => {
     const textNode = textNodesRef.current.get(selectedId);
     if (textNode) {
       try {
+        // Determine font style outside of switch to avoid lexical declaration in case block
+        const getFontStyle = () => {
+          const isBold = (property === 'fontWeight' ? newValue : overlay.data.fontWeight) === 'bold';
+          const isItalic = (property === 'fontStyle' ? newValue : overlay.data.fontStyle) === 'italic';
+          
+          if (isBold && isItalic) return 'bold italic';
+          if (isBold) return 'bold';
+          if (isItalic) return 'italic';
+          return 'normal';
+        };
+        
         switch (property) {
           case 'fontFamily':
-            textNode.fontFamily(newValue);
+            textNode.fontFamily(String(newValue));
             break;
           case 'fontSize':
-            textNode.fontSize(parseInt(newValue));
+            if (typeof newValue === 'string') {
+              textNode.fontSize(parseInt(newValue));
+            } else if (typeof newValue === 'number') {
+              textNode.fontSize(newValue);
+            }
             break;
           case 'fontWeight':
           case 'fontStyle':
-            // Combine font weight and style
-            const fontStyle = (
-              (property === 'fontWeight' ? newValue : overlay.data.fontWeight) === 'bold' &&
-              (property === 'fontStyle' ? newValue : overlay.data.fontStyle) === 'italic'
-            ) ? 'bold italic' : (
-              (property === 'fontWeight' ? newValue : overlay.data.fontWeight) === 'bold' ? 'bold' :
-              (property === 'fontStyle' ? newValue : overlay.data.fontStyle) === 'italic' ? 'italic' : 'normal'
-            );
-            textNode.fontStyle(fontStyle);
+            textNode.fontStyle(getFontStyle());
             break;
           case 'textAlign':
-            textNode.align(newValue);
+            textNode.align(String(newValue));
             break;
           case 'fill':
-            textNode.fill(newValue);
+            textNode.fill(String(newValue));
             break;
           case 'stroke':
-            textNode.stroke(newValue);
+            textNode.stroke(String(newValue));
             break;
           case 'strokeWidth':
-            textNode.strokeWidth(newValue);
+            if (typeof newValue === 'string') {
+              textNode.strokeWidth(parseFloat(newValue));
+            } else if (typeof newValue === 'number') {
+              textNode.strokeWidth(newValue);
+            }
             break;
           case 'width':
             // Update width and ensure text rewraps
-            textNode.width(newValue);
+            if (typeof newValue === 'number') {
+              textNode.width(newValue);
+            }
             break;
         }
         
@@ -479,9 +470,6 @@ const SlideCanvas: React.FC = () => {
         if (transformerRef.current) {
           transformerRef.current.forceUpdate();
         }
-        
-        // Update controls position
-        updateControlsPosition(textNode);
       } catch (error) {
         console.error("Error updating text style:", error);
       }
@@ -518,8 +506,10 @@ const SlideCanvas: React.FC = () => {
     : null;
 
   return (
+    <div>
     <div className="relative flex justify-center items-center w-full max-h-[70vh] overflow-hidden">
       <div className="relative shadow-xl">
+
         <Stage
           ref={stageRef}
           width={width}
@@ -530,12 +520,13 @@ const SlideCanvas: React.FC = () => {
           <Layer ref={layerRef}>
             {/* Background */}
             {currentSlide.background.type === 'color' ? (
-              <Konva.Rect
+              <Text
                 x={0}
                 y={0}
                 width={width}
                 height={height}
                 fill={currentSlide.background.value}
+                text=""
               />
             ) : backgroundImage && (
               <KonvaImage
@@ -552,7 +543,6 @@ const SlideCanvas: React.FC = () => {
                 return (
                   <Text
                     key={overlay.id}
-                    id={overlay.id}
                     name={overlay.id}
                     {...textConfig}
                     onClick={() => handleSelect(overlay.id)}
@@ -594,57 +584,6 @@ const SlideCanvas: React.FC = () => {
           </Layer>
         </Stage>
         
-        {/* Buttons that appear below the text element */}
-        {selectedOverlay && selectedOverlay.type === 'text' && !isEditing && (
-          <div 
-            className="absolute z-10"
-            style={{
-              left: `${controlsPosition.left}px`,
-              top: `${controlsPosition.top}px`,
-              transform: 'translate(-50%, 0)'
-            }}
-          >
-            <div className="flex gap-2">
-              <button
-                className="bg-white shadow-md rounded-full p-2 border border-gray-300 hover:bg-gray-50"
-                onClick={() => {
-                  const fontSize = Math.max(selectedOverlay.data.fontSize - 2, 8);
-                  handleStyleChange('fontSize', fontSize.toString());
-                }}
-                title="Decrease font size"
-              >
-                <Minus size={16} className="text-gray-700" />
-              </button>
-              
-              <button
-                className="bg-white shadow-md rounded-full p-2 border border-gray-300 hover:bg-gray-50"
-                onClick={() => {
-                  const fontSize = Math.min(selectedOverlay.data.fontSize + 2, 120);
-                  handleStyleChange('fontSize', fontSize.toString());
-                }}
-                title="Increase font size"
-              >
-                <Plus size={16} className="text-gray-700" />
-              </button>
-              
-              <button
-                className="bg-white shadow-md rounded-full p-2 border border-gray-300 hover:bg-gray-50"
-                onClick={() => setShowControls(!showControls)}
-                title="Edit text settings"
-              >
-                <Settings size={16} className="text-gray-700" />
-              </button>
-              
-              <button
-                className="bg-red-500 shadow-md rounded-full p-2 border border-red-400 hover:bg-red-600"
-                onClick={handleDelete}
-                title="Delete text"
-              >
-                <Trash2 size={16} className="text-white" />
-              </button>
-            </div>
-          </div>
-        )}
         
         {/* Text Controls Panel */}
         {selectedOverlay && selectedOverlay.type === 'text' && !isEditing && showControls && (
@@ -794,7 +733,34 @@ const SlideCanvas: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+      
+      </div>
+              {/* Text Buttons - Now positioned above the Stage */}
+        {selectedOverlay && selectedOverlay.type === 'text' && !isEditing && (
+          <div
+            id="text-buttons"
+            className="absolute mx-auto flex gap-2 justify-center mb-2"
+          >
+
+
+            <button
+              className="bg-white shadow-md rounded-full p-2 border border-gray-300 hover:bg-gray-50"
+              onClick={() => setShowControls(!showControls)}
+              title="Edit text settings"
+            >
+              <TextCursor size={16} className="text-gray-700" />
+            </button>
+            
+            <button
+              className="bg-red-500 shadow-md rounded-full p-2 border border-red-400 hover:bg-red-600"
+              onClick={handleDelete}
+              title="Delete text"
+            >
+              <Trash2 size={16} className="text-white" />
+            </button>
+          </div>
+        )}
+      </div>
   );
 };
 
