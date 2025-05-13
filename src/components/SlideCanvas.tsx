@@ -201,48 +201,58 @@ const SlideCanvas: React.FC = () => {
     const activeObject = canvas.getActiveObject();
     if (!activeObject || !(activeObject instanceof fabric.Textbox)) return;
 
-    const updates: any = {
-      ...selectedOverlay.data,
-      angle: activeObject.angle || 0,
-      scaleX: activeObject.scaleX || 1,
-      scaleY: activeObject.scaleY || 1
+    // Store current state
+    const currentState = {
+      left: activeObject.left,
+      top: activeObject.top,
+      angle: activeObject.angle,
+      scaleX: activeObject.scaleX,
+      scaleY: activeObject.scaleY
     };
 
     switch (property) {
       case 'fontFamily':
         activeObject.set('fontFamily', value);
-        updates.fontFamily = value;
         break;
       case 'fontSize':
         const size = parseInt(value);
         activeObject.set('fontSize', size);
-        updates.fontSize = size;
         break;
       case 'fontWeight':
         const newWeight = activeObject.get('fontWeight') === 'bold' ? 'normal' : 'bold';
         activeObject.set('fontWeight', newWeight);
-        updates.fontWeight = newWeight;
         break;
       case 'fontStyle':
         const newStyle = activeObject.get('fontStyle') === 'italic' ? 'normal' : 'italic';
         activeObject.set('fontStyle', newStyle);
-        updates.fontStyle = newStyle;
         break;
       case 'textAlign':
         activeObject.set('textAlign', value);
-        updates.textAlign = value;
         break;
     }
 
-    // Ensure the object remains selected
-    activeObject.setCoords();
-    canvas.setActiveObject(activeObject);
+    // Update the overlay data with all current properties
+    const updates = {
+      ...selectedOverlay.data,
+      [property]: value,
+      angle: currentState.angle || 0,
+      scaleX: currentState.scaleX || 1,
+      scaleY: currentState.scaleY || 1
+    };
     
-    // Update the canvas
-    canvas.requestRenderAll();
+    // Preserve position
+    activeObject.set({
+      left: currentState.left,
+      top: currentState.top
+    });
     
     // Update the overlay data
     updateOverlay(currentSlide.id, selectedOverlay.id, updates);
+    
+    // Ensure object remains selected and visible
+    activeObject.setCoords();
+    canvas.setActiveObject(activeObject);
+    canvas.requestRenderAll();
     
     // Update controls position
     updateControlsPosition(activeObject);
